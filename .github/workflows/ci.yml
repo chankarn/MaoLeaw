@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint · Type-check · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type-check
+        run: pnpm run type-check
+
+      - name: Test
+        run: pnpm run test
+        env:
+          # prisma generate reads schema only — a placeholder URL is enough for build/test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?pgbouncer=true
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+      - name: Build
+        run: pnpm run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?pgbouncer=true
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          # Silence Next.js build warnings for missing runtime env vars
+          NEXT_PUBLIC_API_URL: http://localhost:4000
+          NEXT_PUBLIC_LIFF_ID: placeholder
+          NEXT_PUBLIC_PROMPTPAY_ID: placeholder

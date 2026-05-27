@@ -1,0 +1,36 @@
+{
+  "name": "@maoleaw/db",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "deploy": "prisma migrate deploy",
+    "studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "type-check": "tsc --noEmit",
+    "build": "prisma generate",
+    "clean": "rm -rf dist .turbo node_modules/.prisma"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "bcrypt": "^5.1.1",
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^22.9.0"
+  }
+}

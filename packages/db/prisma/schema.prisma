@@ -1,0 +1,199 @@
+// File: packages/db/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum DrinkPreference {
+  LIQUOR
+  BEER
+}
+
+enum DrinkChoice {
+  LIQUOR
+  BEER
+  NONE
+}
+
+enum MemberType {
+  BD
+  TL
+  KU
+  SWU
+  CU
+  KMITL
+  FRIEND
+  OTHER
+}
+
+enum EventStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BillStatus {
+  DRAFT
+  SENT
+  CLOSED
+}
+
+enum BillItemType {
+  LIQUOR
+  BEER
+  SHARED
+}
+
+enum PaymentStatus {
+  PENDING
+  CLAIMED
+  PAID
+}
+
+enum PushDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ───────────────────────── Models ─────────────────────────
+
+model AppConfig {
+  id                  String   @id @default("singleton")
+  promptpayIdOverride String?
+  memberTypeLabels    Json?
+  updatedAt           DateTime @updatedAt @db.Timestamptz(6)
+  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model AdminUser {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+
+  createdEvents Event[] @relation("EventCreatedBy")
+  createdBills  Bill[]  @relation("BillCreatedBy")
+}
+
+model Member {
+  id              String          @id @default(uuid()) @db.Uuid
+  lineUserId      String          @unique
+  lineDisplayName String
+  linePictureUrl  String?
+  customName      String
+  preferredDrink  DrinkPreference
+  memberType      MemberType
+  banned          Boolean         @default(false)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(6)
+
+  submissions Submission[]
+  billShares  BillShare[]
+
+  @@index([banned])
+}
+
+model Event {
+  id           String      @id @default(uuid()) @db.Uuid
+  name         String
+  venue        String
+  eventDate    DateTime    @db.Timestamptz(6)
+  status       EventStatus @default(ACTIVE)
+  customPromptpayId String?
+  createdById  String      @db.Uuid
+  createdAt    DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime    @updatedAt @db.Timestamptz(6)
+  deletedAt    DateTime?   @db.Timestamptz(6)
+
+  createdBy   AdminUser    @relation("EventCreatedBy", fields: [createdById], references: [id])
+  submissions Submission[]
+  bill        Bill?
+
+  @@index([status, deletedAt, eventDate])
+  @@index([eventDate(sort: Desc)])
+}
+
+model Submission {
+  id           String      @id @default(uuid()) @db.Uuid
+  eventId      String      @db.Uuid
+  memberId     String      @db.Uuid
+  nameSnapshot String
+  drinkChoice  DrinkChoice
+  createdAt    DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime    @updatedAt @db.Timestamptz(6)
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, memberId])
+  @@index([eventId])
+  @@index([memberId])
+}
+
+model Bill {
+  id          String     @id @default(uuid()) @db.Uuid
+  eventId     String     @unique @db.Uuid
+  name        String
+  status      BillStatus @default(DRAFT)
+  totalAmount Int        @default(0)
+  createdById String     @db.Uuid
+  sentAt      DateTime?  @db.Timestamptz(6)
+  closedAt    DateTime?  @db.Timestamptz(6)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
+  deletedAt   DateTime?  @db.Timestamptz(6)
+
+  event     Event       @relation(fields: [eventId], references: [id])
+  createdBy AdminUser   @relation("BillCreatedBy", fields: [createdById], references: [id])
+  items     BillItem[]
+  shares    BillShare[]
+
+  @@index([status])
+}
+
+model BillItem {
+  id        String       @id @default(uuid()) @db.Uuid
+  billId    String       @db.Uuid
+  name      String
+  price     Int
+  itemType  BillItemType
+  sortOrder Int          @default(0)
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
+}
+
+model BillShare {
+  id             String             @id @default(uuid()) @db.Uuid
+  billId         String             @db.Uuid
+  memberId       String             @db.Uuid
+  amount         Int
+  sharedAmount   Int                @default(0)
+  drinkAmount    Int                @default(0)
+  paymentStatus  PaymentStatus      @default(PENDING)
+  claimedAt      DateTime?          @db.Timestamptz(6)
+  claimNote      String?
+  paidAt         DateTime?          @db.Timestamptz(6)
+  pushStatus     PushDeliveryStatus @default(PENDING)
+  pushError      String?
+  pushSentAt     DateTime?          @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(6)
+
+  bill   Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([billId, memberId])
+  @@index([memberId])
+  @@index([pushStatus])
+}
