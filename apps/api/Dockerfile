@@ -25,7 +25,9 @@ WORKDIR /app
 # Install step is cached separately from source changes
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --frozen-lockfile
+# --shamefully-hoist hoists all packages to root node_modules so externalized
+# modules (bcrypt, @prisma/client, etc.) are resolvable at runtime from /app.
+RUN pnpm install --frozen-lockfile --shamefully-hoist
 
 # Source + build
 COPY --from=pruner /app/out/full/ .
