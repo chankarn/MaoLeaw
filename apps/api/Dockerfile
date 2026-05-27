@@ -43,7 +43,7 @@ RUN pnpm --filter @maoleaw/api build
 # the entire node_modules to avoid broken symlink resolution.
 # ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat dumb-init
+RUN apk add --no-cache libc6-compat dumb-init openssl
 WORKDIR /app
 ENV NODE_ENV=production PORT=4000
 
