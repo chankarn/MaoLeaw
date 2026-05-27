@@ -29,6 +29,8 @@ RUN pnpm install --frozen-lockfile
 
 # Source + build
 COPY --from=pruner /app/out/full/ .
+# turbo prune does not include root-level config files — copy manually
+COPY --from=pruner /app/tsconfig.base.json ./tsconfig.base.json
 RUN pnpm --filter @maoleaw/db generate
 RUN pnpm --filter @maoleaw/api build
 
