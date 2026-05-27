@@ -36,9 +36,9 @@ RUN pnpm --filter @maoleaw/db generate
 RUN pnpm --filter @maoleaw/api build
 
 # ──────────────────────────────────────────────────────────
-# Stage 3: runner — lean production image
-# Webpack bundles all app source into dist/main.js.
-# Only the externals (@prisma/client, bcrypt) need node_modules.
+# Stage 3: runner — production image
+# pnpm uses a virtual store (.pnpm/) with symlinks, so we copy
+# the entire node_modules to avoid broken symlink resolution.
 # ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat dumb-init
@@ -48,12 +48,8 @@ ENV NODE_ENV=production PORT=4000
 # Webpack bundle
 COPY --from=builder /app/apps/api/dist ./dist
 
-# Prisma: JS client + generated client + query-engine binary (linux-musl)
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-
-# bcrypt: native module externalized from webpack
-COPY --from=builder /app/node_modules/bcrypt ./node_modules/bcrypt
+# Full node_modules (includes pnpm virtual store + all symlinks)
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
