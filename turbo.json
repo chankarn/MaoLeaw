@@ -2,6 +2,14 @@
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["**/.env"],
   "globalEnv": ["NODE_ENV", "DATABASE_URL", "E2E_TEST_MODE"],
+  "globalPassThroughEnv": [
+    "NEXT_PUBLIC_LIFF_ID",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_PROMPTPAY_ID",
+    "ADMIN_API_URL",
+    "ADMIN_COOKIE_SECRET",
+    "LIFF_ID"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build", "^generate"],
