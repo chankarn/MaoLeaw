@@ -134,12 +134,12 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <h1 className="mb-6 text-2xl font-semibold">{editing ? 'Edit Bill' : 'Create Bill'}</h1>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="space-y-6 p-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>ชื่อบิล</Label>
               <Input

@@ -44,12 +44,12 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-amber-700 bg-gradient-to-r from-primary to-amber-500 px-8 py-5 text-white">
+      <header className="border-b border-amber-700 bg-gradient-to-r from-primary to-amber-500 px-4 py-4 text-white md:px-8 md:py-5">
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="text-sm text-white/80">จัดการ profile, app config และ export ข้อมูล</p>
       </header>
 
-      <div className="grid grid-cols-1 gap-6 p-8 lg:grid-cols-[220px_1fr]">
+      <div className="grid grid-cols-1 gap-6 p-4 md:p-8 lg:grid-cols-[220px_1fr]">
         {/* Tab nav */}
         <nav className="space-y-1">
           {TABS.map((t) => (

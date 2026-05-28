@@ -2,8 +2,9 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Calendar, Receipt, Users, LogOut, Settings } from 'lucide-react';
+import { LayoutDashboard, Calendar, Receipt, Users, LogOut, Settings, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { apiFetch, setAdminToken } from '@/lib/api';
@@ -15,9 +16,19 @@ const NAV_MAIN = [
   { href: '/members', icon: Users, label: 'Members' },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ open = true, onClose }: SidebarProps) {
   const path = usePathname();
   const router = useRouter();
+
+  // Close drawer on navigation (mobile)
+  useEffect(() => {
+    onClose?.();
+  }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function logout() {
     try {
@@ -30,76 +41,106 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="relative flex h-screen w-64 flex-col overflow-hidden bg-stone-900 text-stone-100 shadow-xl">
-      {/* Decorative subtle amber glow */}
-      <div className="pointer-events-none absolute -left-12 -top-12 h-32 w-32 rounded-full bg-primary/20 blur-2xl" />
-      <div className="pointer-events-none absolute -right-12 bottom-40 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl" />
+    <>
+      {/* Overlay — mobile only, shown when drawer is open */}
+      {onClose && open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      {/* Brand */}
-      <div className="relative flex flex-col items-center gap-1 border-b border-stone-800 px-4 py-4">
-        <div className="relative h-40 w-full">
-          <Image
-            src="/logo.png"
-            alt="MaoLeaw"
-            fill
-            className="object-contain object-center"
-          />
+      <aside
+        className={cn(
+          'flex h-screen flex-col overflow-hidden bg-stone-900 text-stone-100 shadow-xl',
+          // Mobile: fixed overlay drawer
+          'fixed inset-y-0 left-0 z-50 w-72 transition-transform duration-300 ease-in-out',
+          // Desktop: static in flex layout
+          'md:static md:w-64 md:!translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        {/* Decorative subtle amber glow */}
+        <div className="pointer-events-none absolute -left-12 -top-12 h-32 w-32 rounded-full bg-primary/20 blur-2xl" />
+        <div className="pointer-events-none absolute -right-12 bottom-40 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl" />
+
+        {/* Close button — mobile only */}
+        {onClose && (
+          <button
+            className="absolute right-3 top-3 z-10 rounded-lg p-1.5 text-stone-400 hover:bg-stone-800 hover:text-stone-100 md:hidden"
+            onClick={onClose}
+            aria-label="ปิดเมนู"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* Brand */}
+        <div className="relative flex flex-col items-center gap-1 border-b border-stone-800 px-4 py-4">
+          <div className="relative h-40 w-full">
+            <Image
+              src="/logo.png"
+              alt="MaoLeaw"
+              fill
+              className="object-contain object-center"
+            />
+          </div>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-primary">Admin Panel</span>
         </div>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-primary">Admin Panel</span>
-      </div>
 
-      <nav className="relative flex-1 px-3 py-4">
-        <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
-          General
-        </p>
-        <ul className="space-y-1">
-          {NAV_MAIN.map((n) => {
-            const active = path === n.href || (n.href !== '/dashboard' && path.startsWith(n.href));
-            return (
-              <li key={n.href}>
-                <Link
-                  href={n.href}
-                  className={cn(
-                    'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
-                    active
-                      ? 'bg-gradient-to-r from-primary to-amber-500 font-semibold text-white shadow-md shadow-amber-900/40'
-                      : 'text-stone-400 hover:bg-stone-800 hover:text-stone-100',
-                  )}
-                >
-                  <n.icon className={cn('h-4 w-4 transition', active && 'scale-110')} />
-                  {n.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <nav className="relative flex-1 px-3 py-4">
+          <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+            General
+          </p>
+          <ul className="space-y-1">
+            {NAV_MAIN.map((n) => {
+              const active = path === n.href || (n.href !== '/dashboard' && path.startsWith(n.href));
+              return (
+                <li key={n.href}>
+                  <Link
+                    href={n.href}
+                    className={cn(
+                      'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+                      active
+                        ? 'bg-gradient-to-r from-primary to-amber-500 font-semibold text-white shadow-md shadow-amber-900/40'
+                        : 'text-stone-400 hover:bg-stone-800 hover:text-stone-100',
+                    )}
+                  >
+                    <n.icon className={cn('h-4 w-4 transition', active && 'scale-110')} />
+                    {n.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
 
-        <p className="mt-6 px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
-          Account
-        </p>
-        <ul className="space-y-1">
-          <li>
-            <Link
-              href="/settings"
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-stone-400 transition-colors hover:bg-stone-800 hover:text-stone-100"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          </li>
-        </ul>
-      </nav>
+          <p className="mt-6 px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+            Account
+          </p>
+          <ul className="space-y-1">
+            <li>
+              <Link
+                href="/settings"
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-stone-400 transition-colors hover:bg-stone-800 hover:text-stone-100"
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </li>
+          </ul>
+        </nav>
 
-      <div className="relative border-t border-stone-800 p-3">
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-stone-400 hover:bg-stone-800 hover:text-stone-100"
-          onClick={logout}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Logout
-        </Button>
-      </div>
-    </aside>
+        <div className="relative border-t border-stone-800 p-3">
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-stone-400 hover:bg-stone-800 hover:text-stone-100"
+            onClick={logout}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
+          </Button>
+        </div>
+      </aside>
+    </>
   );
 }

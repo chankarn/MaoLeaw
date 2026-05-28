@@ -37,9 +37,9 @@ export default function DashboardPage() {
 
   if (isLoading || !data) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="mb-6 h-10 w-64 animate-pulse rounded bg-muted" />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />
           ))}
@@ -51,7 +51,7 @@ export default function DashboardPage() {
   const { stats, claims, upcomingEvents } = data;
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="space-y-6 p-4 md:p-8">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold">สวัสดี Admin 👋</h1>

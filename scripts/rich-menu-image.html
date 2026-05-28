@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 2500px; height: 1686px; overflow: hidden; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    width: 2500px;
+    height: 1686px;
+  }
+
+  .btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    border: 3px solid #3b3b6b;
+    cursor: pointer;
+  }
+
+  .btn-home   { background: #2d1b69; }
+  .btn-events { background: #1a2e1a; }
+  .btn-pay    { background: #1a1a3a; }
+  .btn-profile{ background: #1e1b2e; }
+
+  .icon { font-size: 160px; line-height: 1; }
+
+  .label {
+    font-family: 'Anuphan', 'Noto Sans Thai', 'Segoe UI', sans-serif;
+    font-size: 96px;
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .tag {
+    font-family: 'Anuphan', 'Noto Sans Thai', 'Segoe UI', sans-serif;
+    font-size: 56px;
+    color: #a78bfa;
+    background: #312e81;
+    border-radius: 20px;
+    padding: 8px 32px;
+  }
+
+  .btn-events .label { color: #bbf7d0; }
+  .btn-events .tag   { color: #86efac; background: #14532d; }
+  .btn-pay .label    { color: #e0e7ff; }
+  .btn-pay .tag      { color: #a5b4fc; background: #1e1b4b; }
+  .btn-profile .label{ color: #fef9c3; }
+  .btn-profile .tag  { color: #fde047; background: #422006; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="btn btn-home">
+    <span class="icon">🏠</span>
+    <span class="label">หน้าแรก</span>
+    <span class="tag">Events ทั้งหมด</span>
+  </div>
+  <div class="btn btn-events">
+    <span class="icon">🍺</span>
+    <span class="label">งานสังสรรค์</span>
+    <span class="tag">เข้าร่วมงาน</span>
+  </div>
+  <div class="btn btn-pay">
+    <span class="icon">💳</span>
+    <span class="label">สแกนจ่ายเงิน</span>
+    <span class="tag">My Events</span>
+  </div>
+  <div class="btn btn-profile">
+    <span class="icon">👤</span>
+    <span class="label">โปรไฟล์</span>
+    <span class="tag">แก้ข้อมูล</span>
+  </div>
+</div>
+</body>
+</html>

@@ -47,8 +47,8 @@ export default function MembersPage() {
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Amber header */}
-      <header className="border-b border-amber-700 bg-gradient-to-r from-primary to-amber-500 px-8 py-5 text-white">
-        <div className="flex items-center justify-between">
+      <header className="border-b border-amber-700 bg-gradient-to-r from-primary to-amber-500 px-4 py-4 text-white md:px-8 md:py-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold">Members</h1>
             <p className="text-sm text-white/80">
@@ -59,7 +59,7 @@ export default function MembersPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <Input
               placeholder="ค้นหาตามชื่อ..."
-              className="h-11 w-64 bg-white pl-9 text-stone-900 shadow-lg shadow-amber-900/20 ring-1 ring-amber-900/5 transition-all focus-visible:shadow-xl focus-visible:shadow-amber-900/30"
+              className="h-11 w-full bg-white pl-9 text-stone-900 shadow-lg shadow-amber-900/20 ring-1 ring-amber-900/5 transition-all focus-visible:shadow-xl focus-visible:shadow-amber-900/30 sm:w-64"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -88,15 +88,15 @@ export default function MembersPage() {
         </div>
       </header>
 
-      <div className="p-8">
-        <Card>
+      <div className="p-4 md:p-8">
+        <Card className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Member</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Drink</TableHead>
-                <TableHead className="text-right">Events</TableHead>
+                <TableHead className="hidden sm:table-cell">Type</TableHead>
+                <TableHead className="hidden md:table-cell">Drink</TableHead>
+                <TableHead className="hidden sm:table-cell text-right">Events</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
@@ -145,11 +145,11 @@ export default function MembersPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Badge variant="outline">{typeLabel}</Badge>
                       </TableCell>
-                      <TableCell className="text-sm">{DRINK_LABEL[m.preferredDrink]}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{m.totalEvents}</TableCell>
+                      <TableCell className="hidden md:table-cell text-sm">{DRINK_LABEL[m.preferredDrink]}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right font-mono tabular-nums">{m.totalEvents}</TableCell>
                       <TableCell>
                         {m.banned ? (
                           <Badge variant="destructive">

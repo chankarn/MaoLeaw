@@ -163,7 +163,7 @@ export default function BillDetailPage() {
   return (
     <div className="min-h-screen bg-stone-50 pb-24">
       {/* Amber header */}
-      <header className="border-b border-amber-700 bg-gradient-to-r from-primary to-amber-500 px-8 py-5 text-white">
+      <header className="border-b border-amber-700 bg-gradient-to-r from-primary to-amber-500 px-4 py-4 text-white md:px-8 md:py-5">
         <button
           onClick={() => router.back()}
           className="mb-2 inline-flex items-center gap-1 text-xs text-white/80 hover:text-white"
@@ -171,7 +171,7 @@ export default function BillDetailPage() {
           <ArrowLeft className="h-3 w-3" />
           กลับ
         </button>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{bill.name}</h1>
             <p className="mt-0.5 text-sm text-white/80">
@@ -238,7 +238,7 @@ export default function BillDetailPage() {
         </div>
       </header>
 
-      <div className="space-y-6 p-8">
+      <div className="space-y-6 p-4 md:p-8">
         {/* Stats */}
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatBox
@@ -391,14 +391,14 @@ export default function BillDetailPage() {
 
       {/* Bulk action floating bar */}
       {selected.size > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-white px-8 py-4 shadow-2xl">
-          <div className="mx-auto flex max-w-5xl items-center gap-3">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-white px-4 py-3 shadow-2xl md:px-8 md:py-4">
+          <div className="mx-auto flex flex-wrap items-center gap-2 sm:max-w-5xl sm:flex-nowrap sm:gap-3">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                 {selected.size}
               </span>
               <p className="text-sm font-medium">
-                เลือกแล้ว {selected.size} จาก {bill.shares.length}
+                เลือก {selected.size}/{bill.shares.length}
               </p>
               <p className="font-mono text-xs text-muted-foreground">
                 · {formatBaht(selectedShares.reduce((sum, s) => sum + s.amount, 0))}

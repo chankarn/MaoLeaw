@@ -63,7 +63,7 @@ export function EventForm({ initial }: { initial?: EventFormInitial }) {
   return (
     <form onSubmit={onSubmit} className="min-h-screen bg-stone-50">
       {/* Simple page header */}
-      <header className="border-b bg-white px-8 py-5">
+      <header className="border-b bg-white px-4 py-4 md:px-8 md:py-5">
         <button
           type="button"
           onClick={() => router.back()}
@@ -87,7 +87,7 @@ export function EventForm({ initial }: { initial?: EventFormInitial }) {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_300px]">
           {/* Main form */}
           <Card className="p-6">
