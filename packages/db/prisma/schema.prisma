@@ -48,6 +48,7 @@ enum BillStatus {
 enum BillItemType {
   LIQUOR
   BEER
+  MIXER
   SHARED
 }
 
@@ -129,6 +130,7 @@ model Submission {
   memberId     String      @db.Uuid
   nameSnapshot String
   drinkChoice  DrinkChoice
+  sharesMixer  Boolean     @default(false)
   createdAt    DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime    @updatedAt @db.Timestamptz(6)
 
@@ -181,6 +183,7 @@ model BillShare {
   amount         Int
   sharedAmount   Int                @default(0)
   drinkAmount    Int                @default(0)
+  mixerAmount    Int                @default(0)
   paymentStatus  PaymentStatus      @default(PENDING)
   claimedAt      DateTime?          @db.Timestamptz(6)
   claimNote      String?

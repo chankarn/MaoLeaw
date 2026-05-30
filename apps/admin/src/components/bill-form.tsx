@@ -78,7 +78,11 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
     try {
       return calculateBill(
         items,
-        attendees.data.map((a) => ({ memberId: a.memberId, drinkChoice: a.drinkChoice })),
+        attendees.data.map((a) => ({
+          memberId: a.memberId,
+          drinkChoice: a.drinkChoice,
+          sharesMixer: a.sharesMixer,
+        })),
       );
     } catch {
       return null;
@@ -212,6 +216,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                     <SelectContent>
                       <SelectItem value="LIQUOR">🥃 เหล้า</SelectItem>
                       <SelectItem value="BEER">🍺 เบียร์</SelectItem>
+                      <SelectItem value="MIXER">🧊 มิกเซอร์</SelectItem>
                       <SelectItem value="SHARED">👥 หารทุกคน</SelectItem>
                     </SelectContent>
                   </Select>

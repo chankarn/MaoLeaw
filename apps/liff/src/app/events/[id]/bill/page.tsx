@@ -176,6 +176,9 @@ export default function MyBillPage() {
                 value={myShare.sharedAmount}
               />
               <BreakRow icon="🍻" label="ค่าเครื่องดื่ม" value={myShare.drinkAmount} />
+              {myShare.mixerAmount > 0 && (
+                <BreakRow icon="🧊" label="ค่ามิกเซอร์" value={myShare.mixerAmount} />
+              )}
               <div className="flex items-center justify-between border-t border-stone-200 pt-2.5">
                 <span className="font-semibold">รวมทั้งหมด</span>
                 <span className="font-mono text-lg font-bold tabular-nums text-primary">

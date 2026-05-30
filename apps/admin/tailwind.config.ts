@@ -23,7 +23,7 @@ const config: Config = {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         popover: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
-        drink: { liquor: '#D97706', beer: '#EAB308', none: '#0EA5E9' },
+        drink: { liquor: '#D97706', beer: '#EAB308', none: '#0EA5E9', mixer: '#14B8A6' },
       },
       borderRadius: {
         lg: 'var(--radius)',

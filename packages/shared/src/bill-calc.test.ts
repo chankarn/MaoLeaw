@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { calculateBill, sumItemPrices, type CalcAttendee, type CalcItem } from './bill-calc';
 
 const attendees: CalcAttendee[] = [
-  { memberId: 'm1', drinkChoice: 'LIQUOR' },
-  { memberId: 'm2', drinkChoice: 'LIQUOR' },
-  { memberId: 'm3', drinkChoice: 'BEER' },
-  { memberId: 'm4', drinkChoice: 'NONE' },
+  { memberId: 'm1', drinkChoice: 'LIQUOR', sharesMixer: false },
+  { memberId: 'm2', drinkChoice: 'LIQUOR', sharesMixer: false },
+  { memberId: 'm3', drinkChoice: 'BEER', sharesMixer: false },
+  { memberId: 'm4', drinkChoice: 'NONE', sharesMixer: false },
 ];
 
 describe('calculateBill', () => {
@@ -52,9 +52,9 @@ describe('calculateBill', () => {
   it('rounds UP (ceil) — collector favored', () => {
     // 100 / 3 = 33.33 → ceil 34, each pays 34, total 102 (host gets 2 baht surplus)
     const three: CalcAttendee[] = [
-      { memberId: 'a', drinkChoice: 'LIQUOR' },
-      { memberId: 'b', drinkChoice: 'LIQUOR' },
-      { memberId: 'c', drinkChoice: 'LIQUOR' },
+      { memberId: 'a', drinkChoice: 'LIQUOR', sharesMixer: false },
+      { memberId: 'b', drinkChoice: 'LIQUOR', sharesMixer: false },
+      { memberId: 'c', drinkChoice: 'LIQUOR', sharesMixer: false },
     ];
     const items: CalcItem[] = [{ id: 'i1', price: 100, itemType: 'SHARED' }];
     const { shares, total } = calculateBill(items, three);
@@ -65,8 +65,8 @@ describe('calculateBill', () => {
 
   it('emits NO_LIQUOR_DRINKERS warning and skips item', () => {
     const noLiquor: CalcAttendee[] = [
-      { memberId: 'a', drinkChoice: 'BEER' },
-      { memberId: 'b', drinkChoice: 'NONE' },
+      { memberId: 'a', drinkChoice: 'BEER', sharesMixer: false },
+      { memberId: 'b', drinkChoice: 'NONE', sharesMixer: false },
     ];
     const items: CalcItem[] = [
       { id: 'i1', price: 500, itemType: 'LIQUOR' },
@@ -102,6 +102,45 @@ describe('calculateBill', () => {
   it('ignores zero-price items without error', () => {
     const { shares, total } = calculateBill([{ id: 'i1', price: 0, itemType: 'SHARED' }], attendees);
     for (const s of shares) expect(s.amount).toBe(0);
+    expect(total).toBe(0);
+  });
+
+  it('MIXER items split among alcohol drinkers + opted-in NONE drinkers', () => {
+    // m1 (LIQUOR), m2 (LIQUOR), m3 (BEER) auto-eligible; m4 (NONE) is NOT eligible by default
+    const items: CalcItem[] = [{ id: 'i1', price: 180, itemType: 'MIXER' }];
+    const { shares } = calculateBill(items, attendees);
+
+    // 3 eligible → ceil(180/3) = 60 each
+    expect(shares.find((s) => s.memberId === 'm1')?.mixerAmount).toBe(60);
+    expect(shares.find((s) => s.memberId === 'm2')?.mixerAmount).toBe(60);
+    expect(shares.find((s) => s.memberId === 'm3')?.mixerAmount).toBe(60);
+    expect(shares.find((s) => s.memberId === 'm4')?.mixerAmount).toBe(0);
+  });
+
+  it('MIXER includes NONE drinker when sharesMixer=true', () => {
+    const withOptIn: CalcAttendee[] = [
+      { memberId: 'm1', drinkChoice: 'LIQUOR', sharesMixer: false },
+      { memberId: 'm2', drinkChoice: 'NONE', sharesMixer: true },
+      { memberId: 'm3', drinkChoice: 'NONE', sharesMixer: false },
+    ];
+    const items: CalcItem[] = [{ id: 'i1', price: 120, itemType: 'MIXER' }];
+    const { shares } = calculateBill(items, withOptIn);
+
+    // 2 eligible (m1, m2) → ceil(120/2) = 60
+    expect(shares.find((s) => s.memberId === 'm1')?.mixerAmount).toBe(60);
+    expect(shares.find((s) => s.memberId === 'm2')?.mixerAmount).toBe(60);
+    expect(shares.find((s) => s.memberId === 'm3')?.mixerAmount).toBe(0);
+  });
+
+  it('emits NO_MIXER_DRINKERS warning when all NONE and none opted in', () => {
+    const noneOnly: CalcAttendee[] = [
+      { memberId: 'a', drinkChoice: 'NONE', sharesMixer: false },
+      { memberId: 'b', drinkChoice: 'NONE', sharesMixer: false },
+    ];
+    const items: CalcItem[] = [{ id: 'i1', price: 100, itemType: 'MIXER' }];
+    const { warnings, total } = calculateBill(items, noneOnly);
+
+    expect(warnings).toContain('NO_MIXER_DRINKERS:i1');
     expect(total).toBe(0);
   });
 

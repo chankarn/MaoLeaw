@@ -26,12 +26,14 @@ export class SubmissionsService {
       update: {
         nameSnapshot: input.nameSnapshot,
         drinkChoice: input.drinkChoice,
+        sharesMixer: input.drinkChoice === 'NONE' ? input.sharesMixer : false,
       },
       create: {
         eventId,
         memberId,
         nameSnapshot: input.nameSnapshot,
         drinkChoice: input.drinkChoice,
+        sharesMixer: input.drinkChoice === 'NONE' ? input.sharesMixer : false,
       },
     });
   }

@@ -5,7 +5,8 @@
 //   - SHARED items   → split across ALL attendees.
 //   - LIQUOR items   → split across attendees with drinkChoice === 'LIQUOR'.
 //   - BEER items     → split across attendees with drinkChoice === 'BEER'.
-//   - 'NONE' drinkers pay ONLY for SHARED items.
+//   - MIXER items    → split across alcohol drinkers (LIQUOR/BEER) + NONE-drinkers who opted in via sharesMixer.
+//   - 'NONE' drinkers pay ONLY for SHARED items (+ MIXER if sharesMixer is true).
 //   - If no eligible drinkers exist for a drink-typed item, it is skipped and a warning is emitted
 //     (the host absorbs the cost — admin decides whether to fold this back into shared).
 //   - Per-person amount uses Math.ceil so any rounding surplus favors the collector.
@@ -23,6 +24,7 @@ export interface CalcItem {
 export interface CalcAttendee {
   memberId: string;
   drinkChoice: DrinkChoice;
+  sharesMixer: boolean;
 }
 
 export interface CalcShare {
@@ -30,6 +32,7 @@ export interface CalcShare {
   amount: number;
   sharedAmount: number;
   drinkAmount: number;
+  mixerAmount: number;
 }
 
 export interface BillCalculation {
@@ -55,11 +58,18 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
       warnings.push(`DUPLICATE_ATTENDEE:${a.memberId}`);
       continue;
     }
-    shares.set(a.memberId, { memberId: a.memberId, amount: 0, sharedAmount: 0, drinkAmount: 0 });
+    shares.set(a.memberId, {
+      memberId: a.memberId,
+      amount: 0,
+      sharedAmount: 0,
+      drinkAmount: 0,
+      mixerAmount: 0,
+    });
   }
 
   const liquorEligible = attendees.filter((a) => a.drinkChoice === 'LIQUOR');
   const beerEligible = attendees.filter((a) => a.drinkChoice === 'BEER');
+  const mixerEligible = attendees.filter((a) => a.drinkChoice !== 'NONE' || a.sharesMixer);
 
   for (const item of items) {
     if (!Number.isInteger(item.price) || item.price < 0) {
@@ -93,13 +103,23 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
         const s = shares.get(a.memberId);
         if (s) s.drinkAmount += per;
       }
+    } else if (item.itemType === 'MIXER') {
+      if (mixerEligible.length === 0) {
+        warnings.push(`NO_MIXER_DRINKERS:${item.id}`);
+        continue;
+      }
+      const per = Math.ceil(item.price / mixerEligible.length);
+      for (const a of mixerEligible) {
+        const s = shares.get(a.memberId);
+        if (s) s.mixerAmount += per;
+      }
     }
   }
 
   let total = 0;
   const result: CalcShare[] = [];
   for (const s of shares.values()) {
-    s.amount = s.sharedAmount + s.drinkAmount;
+    s.amount = s.sharedAmount + s.drinkAmount + s.mixerAmount;
     total += s.amount;
     result.push(s);
   }

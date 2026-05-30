@@ -95,6 +95,7 @@ export class BillsService {
     const attendees: CalcAttendee[] = event.submissions.map((s) => ({
       memberId: s.memberId,
       drinkChoice: s.drinkChoice,
+      sharesMixer: s.sharesMixer,
     }));
 
     // Compute share preview (we'll re-compute on send/close — Draft items are mutable).
@@ -128,6 +129,7 @@ export class BillsService {
               amount: s.amount,
               sharedAmount: s.sharedAmount,
               drinkAmount: s.drinkAmount,
+              mixerAmount: s.mixerAmount,
             })),
           },
         },
@@ -157,6 +159,7 @@ export class BillsService {
         const attendees: CalcAttendee[] = bill.event.submissions.map((s) => ({
           memberId: s.memberId,
           drinkChoice: s.drinkChoice,
+          sharesMixer: s.sharesMixer,
         }));
         const itemsForCalc = input.items.map((it, idx) => ({
           id: `tmp-${idx}`,
@@ -182,6 +185,7 @@ export class BillsService {
             amount: s.amount,
             sharedAmount: s.sharedAmount,
             drinkAmount: s.drinkAmount,
+            mixerAmount: s.mixerAmount,
           })),
         });
         await tx.bill.update({ where: { id: billId }, data: { totalAmount: total } });
@@ -195,7 +199,7 @@ export class BillsService {
     return prisma.bill.update({ where: { id: billId }, data: { deletedAt: new Date() } });
   }
 
-  async calculatePreview(eventId: string, items: { price: number; itemType: 'LIQUOR' | 'BEER' | 'SHARED' }[]) {
+  async calculatePreview(eventId: string, items: { price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED' }[]) {
     const event = await prisma.event.findFirst({
       where: { id: eventId, deletedAt: null },
       include: { submissions: true },
@@ -205,6 +209,7 @@ export class BillsService {
     const attendees: CalcAttendee[] = event.submissions.map((s) => ({
       memberId: s.memberId,
       drinkChoice: s.drinkChoice,
+      sharesMixer: s.sharesMixer,
     }));
 
     return calculateBill(
@@ -344,6 +349,7 @@ export class BillsService {
         amount: share.amount,
         sharedAmount: share.sharedAmount,
         drinkAmount: share.drinkAmount,
+        mixerAmount: share.mixerAmount,
         paymentStatus: share.paymentStatus,
         paidAt: share.paidAt?.toISOString() ?? null,
         claimedAt: share.claimedAt?.toISOString() ?? null,

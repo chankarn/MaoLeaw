@@ -81,7 +81,7 @@ export function useEventAttendees(eventId: string | undefined) {
   return useQuery({
     queryKey: ['event-attendees', eventId],
     queryFn: () =>
-      apiFetch<Array<{ memberId: string; name: string; drinkChoice: 'LIQUOR' | 'BEER' | 'NONE' }>>(
+      apiFetch<Array<{ memberId: string; name: string; drinkChoice: 'LIQUOR' | 'BEER' | 'NONE'; sharesMixer: boolean }>>(
         `/admin/events/${eventId}/attendees`,
       ),
     enabled: !!eventId,

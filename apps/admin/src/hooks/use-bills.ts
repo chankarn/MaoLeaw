@@ -24,13 +24,14 @@ interface AdminBillDetail {
   status: 'DRAFT' | 'SENT' | 'CLOSED';
   totalAmount: number;
   event: { id: string; name: string; eventDate: string };
-  items: Array<{ id: string; name: string; price: number; itemType: 'LIQUOR' | 'BEER' | 'SHARED'; sortOrder: number }>;
+  items: Array<{ id: string; name: string; price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED'; sortOrder: number }>;
   shares: Array<{
     id: string;
     memberId: string;
     amount: number;
     sharedAmount: number;
     drinkAmount: number;
+    mixerAmount: number;
     paymentStatus: 'PENDING' | 'CLAIMED' | 'PAID';
     claimedAt: string | null;
     claimNote: string | null;

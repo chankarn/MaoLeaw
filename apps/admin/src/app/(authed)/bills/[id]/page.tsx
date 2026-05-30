@@ -328,6 +328,7 @@ export default function BillDetailPage() {
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         Shared {formatBaht(s.sharedAmount)} · Drink{' '}
                         {formatBaht(s.drinkAmount)}
+                        {s.mixerAmount > 0 && <> · Mixer {formatBaht(s.mixerAmount)}</>}
                       </p>
                       {s.claimNote && (
                         <p className="mt-0.5 truncate text-[11px] italic text-sky-700">

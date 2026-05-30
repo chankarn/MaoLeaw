@@ -6,7 +6,7 @@ export type DrinkChoice = 'LIQUOR' | 'BEER' | 'NONE';
 export type MemberType = 'BD' | 'TL' | 'KU' | 'SWU' | 'CU' | 'KMITL' | 'FRIEND' | 'OTHER';
 export type EventStatus = 'ACTIVE' | 'INACTIVE';
 export type BillStatus = 'DRAFT' | 'SENT' | 'CLOSED';
-export type BillItemType = 'LIQUOR' | 'BEER' | 'SHARED';
+export type BillItemType = 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED';
 export type PaymentStatus = 'PENDING' | 'CLAIMED' | 'PAID';
 export type PushDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED';
 export type AdminRole = 'ADMIN';
@@ -39,6 +39,7 @@ export interface AttendeeDto {
   name: string;
   pictureUrl: string | null;
   drinkChoice: DrinkChoice;
+  sharesMixer: boolean;
   memberType: MemberType;
   isMe: boolean;
 }
@@ -63,7 +64,13 @@ export interface EventDetailDto {
   };
   stats: EventStatsDto;
   attendees: AttendeeDto[];
-  mySubmission: { id: string; nameSnapshot: string; drinkChoice: DrinkChoice; updatedAt: string } | null;
+  mySubmission: {
+    id: string;
+    nameSnapshot: string;
+    drinkChoice: DrinkChoice;
+    sharesMixer: boolean;
+    updatedAt: string;
+  } | null;
 }
 
 export interface MyBillDto {
@@ -72,6 +79,7 @@ export interface MyBillDto {
     amount: number;
     sharedAmount: number;
     drinkAmount: number;
+    mixerAmount: number;
     paymentStatus: PaymentStatus;
     paidAt: string | null;
     claimedAt: string | null;
