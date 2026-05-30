@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700;800&family=Inter:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 2500px; height: 1686px; overflow: hidden; background: #1c1917; }
+
+  /* ── System colours ──────────────────────────────────────
+     primary  : hsl(33 95% 44%) ≈ #db7c06
+     amber-500: #f59e0b  amber-400: #fbbf24  amber-300: #fcd34d
+     stone-900: #1c1917  stone-800: #292524  stone-700: #44403c
+     stone-400: #a8a29e
+  ────────────────────────────────────────────────────────── */
+
+  .wrap {
+    width: 2500px; height: 1686px;
+    display: flex; flex-direction: column;
+    font-family: 'IBM Plex Sans Thai', 'Inter', sans-serif;
+  }
+
+  /* ══ TOP BANNER ═══════════════════════════════════════ */
+  .top {
+    width: 2500px; height: 1000px;
+    background: #1c1917;
+    position: relative; overflow: hidden;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 0 120px 0 140px;
+  }
+
+  .top-stripe {
+    position: absolute; top: 0; left: 0; right: 0; height: 8px;
+    background: linear-gradient(90deg,
+      #1c1917 0%, #db7c06 20%, #f59e0b 50%, #db7c06 80%, #1c1917 100%);
+  }
+
+  .glow-a {
+    position: absolute; width: 900px; height: 900px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(219,124,6,.4) 0%, transparent 65%);
+    top: -300px; left: -200px;
+  }
+  .glow-b {
+    position: absolute; width: 700px; height: 700px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(245,158,11,.18) 0%, transparent 65%);
+    bottom: -200px; right: 620px;
+  }
+
+  .dots {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,.055) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  /* ── Left: text ── */
+  .brand-block {
+    position: relative; z-index: 3;
+    display: flex; flex-direction: column; gap: 44px;
+    max-width: 1200px;
+  }
+
+  .brand-eyebrow {
+    display: inline-flex; align-items: center; gap: 20px;
+    background: rgba(219,124,6,.18);
+    border: 1.5px solid rgba(219,124,6,.5);
+    border-radius: 100px; padding: 16px 52px; width: fit-content;
+  }
+  .brand-eyebrow-dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #f59e0b; box-shadow: 0 0 14px #f59e0b;
+  }
+  .brand-eyebrow-text {
+    font-size: 52px; font-weight: 600;
+    color: #f59e0b; letter-spacing: .12em; text-transform: uppercase;
+  }
+
+  .brand-title {
+    font-size: 240px; font-weight: 800; line-height: .88;
+    background: linear-gradient(145deg, #ffffff 0%, #fcd34d 45%, #db7c06 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; letter-spacing: -6px;
+  }
+
+  .brand-sub {
+    font-size: 68px; font-weight: 400;
+    color: #a8a29e; letter-spacing: .07em; padding-left: 6px;
+  }
+
+  .cta-pill {
+    width: fit-content;
+    background: linear-gradient(135deg, #db7c06, #f59e0b);
+    border-radius: 100px; padding: 28px 80px;
+    font-size: 68px; font-weight: 700;
+    color: #fff; letter-spacing: .04em;
+    box-shadow: 0 16px 60px rgba(219,124,6,.55);
+  }
+
+  /* ── Right: mascot ── */
+  .mascot-block {
+    position: relative; z-index: 3;
+    width: 900px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* Spotlight: amber แต่ไม่สว่างมาก — opacity center ~0.62 แทน 0.92
+     multiply ยังทำให้ขาว PNG รับสีด้านล่าง ไม่มีวงขาวแสบตา */
+  .mascot-spotlight {
+    position: absolute;
+    width: 860px; height: 860px; border-radius: 50%;
+    background: radial-gradient(circle,
+      rgba(255, 210, 120, 0.62) 10%,   /* warm amber — อ่อนกว่าเดิม */
+      rgba(230, 155,  30, 0.44) 30%,
+      rgba(190, 110,   8, 0.22) 52%,
+      rgba(219, 124,   6, 0.07) 68%,
+      transparent 78%);
+    filter: blur(20px);
+  }
+
+  .mascot-img {
+    position: relative; z-index: 2;
+    width: 820px; height: auto;
+    mix-blend-mode: multiply;
+    filter: drop-shadow(0 0 50px rgba(245,158,11,.45));
+  }
+
+  /* ══ DIVIDER ══════════════════════════════════════════ */
+  .divider {
+    width: 2500px; height: 6px; flex-shrink: 0;
+    background: linear-gradient(90deg,
+      #1c1917 0%, #44403c 15%, #db7c06 40%, #f59e0b 50%, #db7c06 60%, #44403c 85%, #1c1917 100%);
+  }
+
+  /* ══ BOTTOM 3 BUTTONS ═════════════════════════════════ */
+  .bottom { width: 2500px; flex: 1; display: flex; }
+
+  .btn {
+    flex: 1; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 28px;
+    background: #1c1917;
+    border-right: 2px solid #292524;
+  }
+  .btn:last-child { border-right: none; }
+
+  .btn::after {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 5px;
+    background: linear-gradient(90deg, #db7c06, #f59e0b);
+  }
+  .btn-home::after    { opacity: .75; }
+  .btn-pay::after     { opacity: 1; box-shadow: 0 0 24px rgba(245,158,11,.7); }
+  .btn-profile::after { opacity: .6; }
+
+  .btn-pay { background: #201f1d; }
+
+  .btn-pay .btn-glow {
+    position: absolute; width: 500px; height: 500px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(219,124,6,.22) 0%, transparent 70%);
+    top: -140px; left: 50%; transform: translateX(-50%);
+  }
+
+  .btn-icon {
+    position: relative; z-index: 2;
+    font-size: 160px; line-height: 1;
+    filter: drop-shadow(0 4px 24px rgba(219,124,6,.4));
+  }
+
+  .btn-label {
+    position: relative; z-index: 2;
+    font-size: 92px; font-weight: 700;
+    color: #fff; text-align: center; line-height: 1.15;
+  }
+  .btn-pay .btn-label { color: #fcd34d; }
+
+  .btn-tag {
+    position: relative; z-index: 2;
+    font-size: 52px; font-weight: 500;
+    color: #fbbf24;
+    background: rgba(219,124,6,.15);
+    border: 1.5px solid rgba(219,124,6,.45);
+    border-radius: 14px; padding: 10px 36px;
+  }
+  .btn-pay .btn-tag {
+    background: rgba(219,124,6,.25);
+    border-color: rgba(245,158,11,.65);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="top-stripe"></div>
+    <div class="glow-a"></div>
+    <div class="glow-b"></div>
+    <div class="dots"></div>
+
+    <div class="brand-block">
+      <div class="brand-eyebrow">
+        <div class="brand-eyebrow-dot"></div>
+        <span class="brand-eyebrow-text">MaoLeaw · เมาเลี๊ยว</span>
+      </div>
+      <div class="brand-title">งาน<br>สังสรรค์</div>
+      <div class="brand-sub">ดู Events ที่น่าสนใจทั้งหมด</div>
+      <div class="cta-pill">🍺 เข้าร่วมงาน</div>
+    </div>
+
+    <div class="mascot-block">
+      <div class="mascot-spotlight"></div>
+      <img class="mascot-img" src="../docs/Maoleaw_Mascot.png" alt="MaoLeaw Mascot" />
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="bottom">
+    <div class="btn btn-home">
+      <span class="btn-icon">🏠</span>
+      <span class="btn-label">หน้าแรก</span>
+      <span class="btn-tag">Events ทั้งหมด</span>
+    </div>
+    <div class="btn btn-pay">
+      <div class="btn-glow"></div>
+      <span class="btn-icon">💳</span>
+      <span class="btn-label">สแกนจ่ายเงิน</span>
+      <span class="btn-tag">My Events</span>
+    </div>
+    <div class="btn btn-profile">
+      <span class="btn-icon">👤</span>
+      <span class="btn-label">โปรไฟล์</span>
+      <span class="btn-tag">แก้ข้อมูล</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -55,11 +55,12 @@ font-family: 'Inter', 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif
 
 ### 1.4 Drink Type Color Mapping (semantic for charts/badges)
 
-| Drink | Color | Hex | Icon |
-|---|---|---|---|
-| Liquor (เหล้า) | Amber 600 | `#D97706` | 🥃 |
-| Beer (เบียร์) | Yellow 500 | `#EAB308` | 🍺 |
-| None (ไม่กินแอล) | Sky 500 | `#0EA5E9` | 💧 |
+| Drink / Item type | Color | Hex | Icon | Used for |
+|---|---|---|---|---|
+| Liquor (เหล้า) | Amber 600 | `#D97706` | 🥃 | drink choice + bill item |
+| Beer (เบียร์) | Yellow 500 | `#EAB308` | 🍺 | drink choice + bill item |
+| None (ไม่กินแอล) | Sky 500 | `#0EA5E9` | 💧 | drink choice |
+| Mixer (มิกเซอร์) | Teal 500 | `#14B8A6` | 🧊 | bill item only — โซดา/น้ำแข็ง/น้ำผลไม้ |
 
 ### 1.5 Member Type Badges
 
@@ -125,6 +126,7 @@ export default {
           liquor: '#D97706',
           beer: '#EAB308',
           none: '#0EA5E9',
+          mixer: '#14B8A6',
         },
       },
       borderRadius: {
@@ -585,17 +587,22 @@ function DrinkBadge({ choice }: { choice: 'LIQUOR'|'BEER'|'NONE' }) {
 
 function JoinDialog({ open, onOpenChange, eventId, existing, onSuccess }: {
   open: boolean; onOpenChange: (v: boolean) => void; eventId: string;
-  existing: { nameSnapshot: string; drinkChoice: 'LIQUOR'|'BEER'|'NONE' } | null;
+  existing: { nameSnapshot: string; drinkChoice: 'LIQUOR'|'BEER'|'NONE'; sharesMixer: boolean } | null;
   onSuccess: () => void;
 }) {
   const { mutateAsync: submit, isPending } = useSubmitAttendance(eventId);
   const [name, setName] = useState(existing?.nameSnapshot ?? '');
   const [drink, setDrink] = useState<'LIQUOR'|'BEER'|'NONE'|''>(existing?.drinkChoice ?? '');
+  const [sharesMixer, setSharesMixer] = useState<boolean>(existing?.sharesMixer ?? false);
 
   const canSubmit = name.trim() && drink && !isPending;
 
   async function handleSubmit() {
-    await submit({ nameSnapshot: name.trim(), drinkChoice: drink as any });
+    await submit({
+      nameSnapshot: name.trim(),
+      drinkChoice: drink as any,
+      sharesMixer: drink === 'NONE' ? sharesMixer : false,
+    });
     onSuccess();
     onOpenChange(false);
   }
@@ -620,6 +627,15 @@ function JoinDialog({ open, onOpenChange, eventId, existing, onSuccess }: {
               ))}
             </RadioGroup>
           </div>
+          {drink === 'NONE' && (
+            <Label className="flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 has-[:checked]:border-drink-mixer has-[:checked]:bg-drink-mixer/5">
+              <Checkbox checked={sharesMixer} onCheckedChange={(v) => setSharesMixer(!!v)} className="mt-0.5"/>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">🧊 กินมิกเซอร์ด้วย</p>
+                <p className="text-xs text-muted-foreground">ร่วมหารค่าโซดา/น้ำแข็ง/น้ำผลไม้ (ยังไม่จ่ายค่าเหล้า/เบียร์)</p>
+              </div>
+            </Label>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
@@ -692,6 +708,9 @@ export default function MyBillPage() {
         <div className="space-y-1 p-4 text-sm">
           <Row label="ค่าอาหาร / หารทุกคน" value={myShare.sharedAmount}/>
           <Row label="ค่าเครื่องดื่ม"          value={myShare.drinkAmount}/>
+          {myShare.mixerAmount > 0 && (
+            <Row label="ค่ามิกเซอร์"            value={myShare.mixerAmount}/>
+          )}
         </div>
       </Card>
 
@@ -969,7 +988,7 @@ import { calculateBill } from '@maoleaw/shared/bill-calc';
 import { useEventOptions } from '@/hooks/use-events';
 import { useEventAttendees } from '@/hooks/use-attendees';
 
-type Row = { tempId: string; name: string; price: number; itemType: 'LIQUOR'|'BEER'|'SHARED' };
+type Row = { tempId: string; name: string; price: number; itemType: 'LIQUOR'|'BEER'|'MIXER'|'SHARED' };
 
 export default function BillCreatePage() {
   const [eventId, setEventId] = useState('');
@@ -983,7 +1002,7 @@ export default function BillCreatePage() {
   // Live preview
   const preview = attendees ? calculateBill(
     rows.filter(r => r.name && r.price > 0).map(r => ({ id: r.tempId, price: Number(r.price), itemType: r.itemType })),
-    attendees.map(a => ({ memberId: a.memberId, drinkChoice: a.drinkChoice }))
+    attendees.map(a => ({ memberId: a.memberId, drinkChoice: a.drinkChoice, sharesMixer: a.sharesMixer }))
   ) : null;
 
   return (
@@ -1032,6 +1051,7 @@ export default function BillCreatePage() {
                     <SelectContent>
                       <SelectItem value="LIQUOR">🥃 เหล้า</SelectItem>
                       <SelectItem value="BEER">🍺 เบียร์</SelectItem>
+                      <SelectItem value="MIXER">🧊 มิกเซอร์</SelectItem>
                       <SelectItem value="SHARED">👥 หารทุกคน</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1229,19 +1249,22 @@ export const MOCK_EVENTS = [
 ];
 
 export const MOCK_ATTENDEES = [
-  { memberId: 'm1', name: 'เมา',   pictureUrl: '...', drinkChoice: 'LIQUOR', isMe: true  },
-  { memberId: 'm2', name: 'แตงโม', pictureUrl: '...', drinkChoice: 'BEER',   isMe: false },
-  { memberId: 'm3', name: 'ไอซ์',  pictureUrl: '...', drinkChoice: 'NONE',   isMe: false },
+  { memberId: 'm1', name: 'เมา',   pictureUrl: '...', drinkChoice: 'LIQUOR', sharesMixer: false, isMe: true  },
+  { memberId: 'm2', name: 'แตงโม', pictureUrl: '...', drinkChoice: 'BEER',   sharesMixer: false, isMe: false },
+  { memberId: 'm3', name: 'ไอซ์',  pictureUrl: '...', drinkChoice: 'NONE',   sharesMixer: true,  isMe: false },
+  { memberId: 'm4', name: 'มะนาว', pictureUrl: '...', drinkChoice: 'NONE',   sharesMixer: false, isMe: false },
 ];
 
 export const MOCK_BILL_PREVIEW = {
+  // Bill: SHARED ฿720 (÷4) + LIQUOR ฿400 (÷1) + BEER ฿300 (÷1) + MIXER ฿180 (÷3: m1,m2,m3)
   shares: [
-    { memberId: 'm1', amount: 580, sharedAmount: 180, drinkAmount: 400 },
-    { memberId: 'm2', amount: 480, sharedAmount: 180, drinkAmount: 300 },
-    { memberId: 'm3', amount: 180, sharedAmount: 180, drinkAmount: 0   },
+    { memberId: 'm1', amount: 640, sharedAmount: 180, drinkAmount: 400, mixerAmount: 60 },
+    { memberId: 'm2', amount: 540, sharedAmount: 180, drinkAmount: 300, mixerAmount: 60 },
+    { memberId: 'm3', amount: 240, sharedAmount: 180, drinkAmount: 0,   mixerAmount: 60 },
+    { memberId: 'm4', amount: 180, sharedAmount: 180, drinkAmount: 0,   mixerAmount: 0  },
   ],
   warnings: [],
-  total: 1240,
+  total: 1600,
 };
 ```
 

@@ -27,6 +27,7 @@ const liffUrl = (path: string) =>
   `https://liff.line.me/${LIFF_ID}${path === '/' ? '' : `?liff.state=${encodeURIComponent(path)}`}`;
 
 // ─── Rich Menu Definition ────────────────────────────────
+// Layout: 1 banner บน (งานสังสรรค์) + 3 ปุ่มด้านล่าง
 const richMenu = {
   size: { width: 2500, height: 1686 },
   selected: true,
@@ -34,23 +35,23 @@ const richMenu = {
   chatBarText: '🍺 เมนู',
   areas: [
     {
-      // บนซ้าย: หน้าแรก
-      bounds: { x: 0, y: 0, width: 1250, height: 843 },
-      action: { type: 'uri', uri: liffUrl('/') },
-    },
-    {
-      // บนขวา: งานสังสรรค์
-      bounds: { x: 1250, y: 0, width: 1250, height: 843 },
+      // บน (full width): งานสังสรรค์ → /events
+      bounds: { x: 0, y: 0, width: 2500, height: 1000 },
       action: { type: 'uri', uri: liffUrl('/events') },
     },
     {
-      // ล่างซ้าย: สแกนจ่ายเงิน → my-events
-      bounds: { x: 0, y: 843, width: 1250, height: 843 },
+      // ล่างซ้าย: หน้าแรก → /
+      bounds: { x: 0, y: 1000, width: 833, height: 686 },
+      action: { type: 'uri', uri: liffUrl('/') },
+    },
+    {
+      // ล่างกลาง: สแกนจ่ายเงิน → /my-events
+      bounds: { x: 833, y: 1000, width: 834, height: 686 },
       action: { type: 'uri', uri: liffUrl('/my-events') },
     },
     {
-      // ล่างขวา: โปรไฟล์
-      bounds: { x: 1250, y: 843, width: 1250, height: 843 },
+      // ล่างขวา: โปรไฟล์ → /profile
+      bounds: { x: 1667, y: 1000, width: 833, height: 686 },
       action: { type: 'uri', uri: liffUrl('/profile') },
     },
   ],
@@ -95,7 +96,7 @@ async function main() {
   console.log(`✅  สร้าง Rich Menu สำเร็จ: ${richMenuId}`);
 
   // 2. Upload image (ถ้ามีไฟล์ rich-menu-image.png)
-  const imagePath = path.join(__dirname, 'rich-menu-image.png');
+  const imagePath = path.join(__dirname, 'rich-menu-image.jpg');
   if (fs.existsSync(imagePath)) {
     await uploadImage(richMenuId, imagePath);
   } else {
@@ -108,11 +109,11 @@ async function main() {
   console.log('✅  ตั้งเป็น Default Rich Menu สำเร็จ');
 
   console.log(`\n🎉  เสร็จแล้ว! Rich Menu ID: ${richMenuId}`);
-  console.log('\nURL ที่ใช้:');
-  console.log(`  🏠 หน้าแรก       → ${liffUrl('/')}`);
-  console.log(`  🍺 งานสังสรรค์   → ${liffUrl('/events')}`);
-  console.log(`  💳 สแกนจ่ายเงิน  → ${liffUrl('/my-events')}`);
-  console.log(`  👤 โปรไฟล์       → ${liffUrl('/profile')}`);
+  console.log('\nURL ที่ใช้ (layout: 1 บน + 3 ล่าง):');
+  console.log(`  🍺 งานสังสรรค์   → ${liffUrl('/events')}   [banner บน]`);
+  console.log(`  🏠 หน้าแรก       → ${liffUrl('/')}         [ล่างซ้าย]`);
+  console.log(`  💳 สแกนจ่ายเงิน  → ${liffUrl('/my-events')} [ล่างกลาง]`);
+  console.log(`  👤 โปรไฟล์       → ${liffUrl('/profile')}  [ล่างขวา]`);
 }
 
 main().catch((e) => {

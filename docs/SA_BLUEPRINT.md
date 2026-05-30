@@ -113,6 +113,7 @@ erDiagram
     uuid memberId FK
     string nameSnapshot "submission-time name"
     DrinkChoice drinkChoice "LIQUOR|BEER|NONE"
+    boolean sharesMixer "default false; only meaningful when drinkChoice=NONE"
     datetime createdAt
     datetime updatedAt
   }
@@ -136,7 +137,7 @@ erDiagram
     uuid billId FK
     string name
     int price "baht, integer"
-    BillItemType itemType "LIQUOR|BEER|SHARED"
+    BillItemType itemType "LIQUOR|BEER|MIXER|SHARED"
     int sortOrder
   }
 
@@ -146,7 +147,8 @@ erDiagram
     uuid memberId FK
     int amount "baht, computed"
     int sharedAmount "breakdown"
-    int drinkAmount "breakdown"
+    int drinkAmount "breakdown (liquor/beer)"
+    int mixerAmount "breakdown (mixer)"
     PaymentStatus paymentStatus "PENDING|PAID"
     datetime paidAt "nullable"
     PushDeliveryStatus pushStatus "PENDING|SENT|FAILED"
@@ -189,7 +191,7 @@ enum DrinkChoice     { LIQUOR  BEER  NONE }
 enum MemberType      { BD  TL  KU  FRIEND  OTHER }
 enum EventStatus     { ACTIVE  INACTIVE }
 enum BillStatus      { DRAFT  SENT  CLOSED }
-enum BillItemType    { LIQUOR  BEER  SHARED }
+enum BillItemType    { LIQUOR  BEER  MIXER  SHARED }
 enum PaymentStatus   { PENDING  PAID }
 enum PushDeliveryStatus { PENDING  SENT  FAILED }
 ```
@@ -254,6 +256,7 @@ enum PushDeliveryStatus { PENDING  SENT  FAILED }
 | memberId | UUID | FK → Member.id, RESTRICT | |
 | nameSnapshot | VARCHAR(50) | NOT NULL | name at submit time |
 | drinkChoice | DrinkChoice | NOT NULL | LIQUOR/BEER/NONE |
+| sharesMixer | BOOLEAN | NOT NULL, default false | opt-in to share MIXER items; only meaningful when drinkChoice=NONE (LIQUOR/BEER auto-share) |
 | createdAt | TIMESTAMPTZ | NOT NULL | |
 | updatedAt | TIMESTAMPTZ | NOT NULL | optimistic lock |
 
@@ -287,7 +290,7 @@ enum PushDeliveryStatus { PENDING  SENT  FAILED }
 | billId | UUID | FK → Bill.id, CASCADE | |
 | name | VARCHAR(100) | NOT NULL | |
 | price | INTEGER | NOT NULL, CHECK >= 0 | baht |
-| itemType | BillItemType | NOT NULL | LIQUOR/BEER/SHARED |
+| itemType | BillItemType | NOT NULL | LIQUOR/BEER/MIXER/SHARED |
 | sortOrder | INTEGER | NOT NULL, default 0 | preserve UI order |
 
 **Indexes:** `billId`
@@ -302,6 +305,7 @@ enum PushDeliveryStatus { PENDING  SENT  FAILED }
 | amount | INTEGER | NOT NULL, CHECK >= 0 | total owed |
 | sharedAmount | INTEGER | NOT NULL, default 0 | from SHARED items |
 | drinkAmount | INTEGER | NOT NULL, default 0 | from LIQUOR/BEER |
+| mixerAmount | INTEGER | NOT NULL, default 0 | from MIXER items |
 | paymentStatus | PaymentStatus | NOT NULL, default PENDING | |
 | paidAt | TIMESTAMPTZ | NULLABLE | |
 | pushStatus | PushDeliveryStatus | NOT NULL, default PENDING | LINE push tracking |
@@ -489,10 +493,10 @@ Event detail + stats + attendee list.
     "none":   { "count": 1, "percent": 9 }
   },
   "attendees": [
-    { "memberId": "uuid", "name": "Mao", "pictureUrl": "...", "drinkChoice": "LIQUOR", "isMe": true }
+    { "memberId": "uuid", "name": "Mao", "pictureUrl": "...", "drinkChoice": "LIQUOR", "sharesMixer": false, "isMe": true }
   ],
   "mySubmission": {
-    "id": "uuid", "nameSnapshot": "Mao", "drinkChoice": "LIQUOR",
+    "id": "uuid", "nameSnapshot": "Mao", "drinkChoice": "LIQUOR", "sharesMixer": false,
     "updatedAt": "..."
   } | null
 }
@@ -507,7 +511,7 @@ Create or update my submission. Idempotent (upsert).
 
 **Request:**
 ```json
-{ "nameSnapshot": "Mao", "drinkChoice": "LIQUOR" }
+{ "nameSnapshot": "Mao", "drinkChoice": "LIQUOR", "sharesMixer": false }
 ```
 
 **Response 200:** `Submission`
@@ -532,9 +536,10 @@ Get my bill share for this event.
     "totalAmount": 5400
   },
   "myShare": {
-    "amount": 450,
+    "amount": 480,
     "sharedAmount": 200,
     "drinkAmount": 250,
+    "mixerAmount": 30,
     "paymentStatus": "PENDING",
     "paidAt": null
   },
@@ -612,7 +617,8 @@ Clears cookie. Response 204.
   "items": [
     { "name": "ข้าวเย็น", "price": 1200, "itemType": "SHARED", "sortOrder": 0 },
     { "name": "เหล้าขาว 1 ขวด", "price": 350, "itemType": "LIQUOR", "sortOrder": 1 },
-    { "name": "เบียร์ลีโอ 6 ขวด", "price": 600, "itemType": "BEER", "sortOrder": 2 }
+    { "name": "เบียร์ลีโอ 6 ขวด", "price": 600, "itemType": "BEER", "sortOrder": 2 },
+    { "name": "โซดา + น้ำแข็ง", "price": 180, "itemType": "MIXER", "sortOrder": 3 }
   ]
 }
 ```
@@ -778,12 +784,12 @@ Used by cron-job.org to keep Render warm.
 ```ts
 // packages/shared/src/bill-calc.ts
 
-type ItemType = 'LIQUOR' | 'BEER' | 'SHARED';
+type ItemType = 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED';
 type DrinkChoice = 'LIQUOR' | 'BEER' | 'NONE';
 
 interface Item { id: string; price: number; itemType: ItemType; }
-interface Attendee { memberId: string; drinkChoice: DrinkChoice; }
-interface Share { memberId: string; sharedAmount: number; drinkAmount: number; amount: number; }
+interface Attendee { memberId: string; drinkChoice: DrinkChoice; sharesMixer: boolean; }
+interface Share { memberId: string; sharedAmount: number; drinkAmount: number; mixerAmount: number; amount: number; }
 
 export function calculateBill(items: Item[], attendees: Attendee[]): {
   shares: Share[];
@@ -792,7 +798,7 @@ export function calculateBill(items: Item[], attendees: Attendee[]): {
 } {
   const warnings: string[] = [];
   const shares = new Map<string, Share>(
-    attendees.map(a => [a.memberId, { memberId: a.memberId, sharedAmount: 0, drinkAmount: 0, amount: 0 }])
+    attendees.map(a => [a.memberId, { memberId: a.memberId, sharedAmount: 0, drinkAmount: 0, mixerAmount: 0, amount: 0 }])
   );
 
   if (attendees.length === 0) {
@@ -802,6 +808,8 @@ export function calculateBill(items: Item[], attendees: Attendee[]): {
 
   const liquorEligible = attendees.filter(a => a.drinkChoice === 'LIQUOR');
   const beerEligible   = attendees.filter(a => a.drinkChoice === 'BEER');
+  // MIXER: alcohol drinkers always share; non-alcohol opt in via sharesMixer flag
+  const mixerEligible  = attendees.filter(a => a.drinkChoice !== 'NONE' || a.sharesMixer);
 
   for (const item of items) {
     if (item.itemType === 'SHARED') {
@@ -817,13 +825,18 @@ export function calculateBill(items: Item[], attendees: Attendee[]): {
       if (beerEligible.length === 0) { warnings.push(`NO_BEER_DRINKERS:${item.id}`); continue; }
       const per = Math.ceil(item.price / beerEligible.length);
       for (const a of beerEligible) shares.get(a.memberId)!.drinkAmount += per;
+
+    } else if (item.itemType === 'MIXER') {
+      if (mixerEligible.length === 0) { warnings.push(`NO_MIXER_DRINKERS:${item.id}`); continue; }
+      const per = Math.ceil(item.price / mixerEligible.length);
+      for (const a of mixerEligible) shares.get(a.memberId)!.mixerAmount += per;
     }
   }
 
   let total = 0;
   const result: Share[] = [];
   for (const s of shares.values()) {
-    s.amount = s.sharedAmount + s.drinkAmount;
+    s.amount = s.sharedAmount + s.drinkAmount + s.mixerAmount;
     total += s.amount;
     result.push(s);
   }
