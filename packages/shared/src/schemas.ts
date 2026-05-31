@@ -41,7 +41,6 @@ export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 export const submitAttendanceSchema = z.object({
   nameSnapshot: z.string().trim().min(1).max(MAX_CUSTOM_NAME_LENGTH),
   drinkChoice: drinkChoiceSchema,
-  sharesMixer: z.boolean().default(false),
 });
 export type SubmitAttendanceInput = z.infer<typeof submitAttendanceSchema>;
 
@@ -66,6 +65,7 @@ export const billItemInputSchema = z.object({
   name: z.string().trim().min(1).max(MAX_ITEM_NAME_LENGTH),
   price: z.number().int().nonnegative(),
   itemType: billItemTypeSchema,
+  extraMemberIds: z.array(z.string().uuid()).default([]),
   sortOrder: z.number().int().nonnegative().default(0),
 });
 

@@ -92,10 +92,12 @@ export class BillsService {
       throw new BadRequestException('Event has no attendees');
     }
 
+    const attendeeIds = new Set(event.submissions.map((s) => s.memberId));
+    validateExtras(input.items, attendeeIds);
+
     const attendees: CalcAttendee[] = event.submissions.map((s) => ({
       memberId: s.memberId,
       drinkChoice: s.drinkChoice,
-      sharesMixer: s.sharesMixer,
     }));
 
     // Compute share preview (we'll re-compute on send/close — Draft items are mutable).
@@ -103,6 +105,7 @@ export class BillsService {
       id: `tmp-${idx}`,
       price: it.price,
       itemType: it.itemType,
+      extraMemberIds: it.extraMemberIds ?? [],
     }));
     const { shares } = calculateBill(itemsForCalc, attendees);
     const total = sumItemPrices(itemsForCalc);
@@ -120,6 +123,7 @@ export class BillsService {
               name: it.name,
               price: it.price,
               itemType: it.itemType,
+              extraMemberIds: it.extraMemberIds ?? [],
               sortOrder: it.sortOrder ?? idx,
             })),
           },
@@ -152,6 +156,9 @@ export class BillsService {
         await tx.bill.update({ where: { id: billId }, data: { name: input.name } });
       }
       if (input.items) {
+        const attendeeIds = new Set(bill.event.submissions.map((s) => s.memberId));
+        validateExtras(input.items, attendeeIds);
+
         // Replace items + recompute shares.
         await tx.billItem.deleteMany({ where: { billId } });
         await tx.billShare.deleteMany({ where: { billId } });
@@ -159,12 +166,12 @@ export class BillsService {
         const attendees: CalcAttendee[] = bill.event.submissions.map((s) => ({
           memberId: s.memberId,
           drinkChoice: s.drinkChoice,
-          sharesMixer: s.sharesMixer,
         }));
         const itemsForCalc = input.items.map((it, idx) => ({
           id: `tmp-${idx}`,
           price: it.price,
           itemType: it.itemType,
+          extraMemberIds: it.extraMemberIds ?? [],
         }));
         const { shares } = calculateBill(itemsForCalc, attendees);
         const total = sumItemPrices(itemsForCalc);
@@ -175,6 +182,7 @@ export class BillsService {
             name: it.name,
             price: it.price,
             itemType: it.itemType,
+            extraMemberIds: it.extraMemberIds ?? [],
             sortOrder: it.sortOrder ?? idx,
           })),
         });
@@ -199,7 +207,10 @@ export class BillsService {
     return prisma.bill.update({ where: { id: billId }, data: { deletedAt: new Date() } });
   }
 
-  async calculatePreview(eventId: string, items: { price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED' }[]) {
+  async calculatePreview(
+    eventId: string,
+    items: { price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED'; extraMemberIds?: string[] }[],
+  ) {
     const event = await prisma.event.findFirst({
       where: { id: eventId, deletedAt: null },
       include: { submissions: true },
@@ -209,11 +220,15 @@ export class BillsService {
     const attendees: CalcAttendee[] = event.submissions.map((s) => ({
       memberId: s.memberId,
       drinkChoice: s.drinkChoice,
-      sharesMixer: s.sharesMixer,
     }));
 
     return calculateBill(
-      items.map((it, idx) => ({ id: `tmp-${idx}`, price: it.price, itemType: it.itemType })),
+      items.map((it, idx) => ({
+        id: `tmp-${idx}`,
+        price: it.price,
+        itemType: it.itemType,
+        extraMemberIds: it.extraMemberIds ?? [],
+      })),
       attendees,
     );
   }
@@ -359,4 +374,15 @@ export class BillsService {
     };
   }
 
+}
+
+/** Throws BadRequestException if any extraMemberIds entry isn't an attendee of the event. */
+function validateExtras(items: { extraMemberIds?: string[] }[], attendeeIds: Set<string>) {
+  items.forEach((it, i) => {
+    for (const id of it.extraMemberIds ?? []) {
+      if (!attendeeIds.has(id)) {
+        throw new BadRequestException(`Item #${i + 1}: ${id} is not an attendee of this event`);
+      }
+    }
+  });
 }

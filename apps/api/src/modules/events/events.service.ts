@@ -96,7 +96,6 @@ export class EventsService {
       name: s.nameSnapshot || s.member.customName || s.member.lineDisplayName,
       pictureUrl: s.member.linePictureUrl,
       drinkChoice: s.drinkChoice,
-      sharesMixer: s.sharesMixer,
       memberType: s.member.memberType,
       isMe: s.memberId === memberId,
     }));
@@ -123,7 +122,6 @@ export class EventsService {
             id: mySub.id,
             nameSnapshot: mySub.nameSnapshot,
             drinkChoice: mySub.drinkChoice,
-            sharesMixer: mySub.sharesMixer,
             updatedAt: mySub.updatedAt.toISOString(),
           }
         : null,
@@ -249,7 +247,6 @@ export class EventsService {
       memberId: s.memberId,
       name: s.nameSnapshot || s.member.customName || s.member.lineDisplayName,
       drinkChoice: s.drinkChoice,
-      sharesMixer: s.sharesMixer,
     }));
   }
 

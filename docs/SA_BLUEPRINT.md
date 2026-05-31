@@ -113,7 +113,6 @@ erDiagram
     uuid memberId FK
     string nameSnapshot "submission-time name"
     DrinkChoice drinkChoice "LIQUOR|BEER|NONE"
-    boolean sharesMixer "default false; only meaningful when drinkChoice=NONE"
     datetime createdAt
     datetime updatedAt
   }
@@ -138,6 +137,7 @@ erDiagram
     string name
     int price "baht, integer"
     BillItemType itemType "LIQUOR|BEER|MIXER|SHARED"
+    uuid[] extraMemberIds "default []; admin-added extras (union with type default)"
     int sortOrder
   }
 
@@ -256,7 +256,6 @@ enum PushDeliveryStatus { PENDING  SENT  FAILED }
 | memberId | UUID | FK → Member.id, RESTRICT | |
 | nameSnapshot | VARCHAR(50) | NOT NULL | name at submit time |
 | drinkChoice | DrinkChoice | NOT NULL | LIQUOR/BEER/NONE |
-| sharesMixer | BOOLEAN | NOT NULL, default false | opt-in to share MIXER items; only meaningful when drinkChoice=NONE (LIQUOR/BEER auto-share) |
 | createdAt | TIMESTAMPTZ | NOT NULL | |
 | updatedAt | TIMESTAMPTZ | NOT NULL | optimistic lock |
 
@@ -291,6 +290,7 @@ enum PushDeliveryStatus { PENDING  SENT  FAILED }
 | name | VARCHAR(100) | NOT NULL | |
 | price | INTEGER | NOT NULL, CHECK >= 0 | baht |
 | itemType | BillItemType | NOT NULL | LIQUOR/BEER/MIXER/SHARED |
+| extraMemberIds | UUID[] | NOT NULL, default `'{}'` | admin-added extras (union with type default); each id must reference an attendee of the bill's event |
 | sortOrder | INTEGER | NOT NULL, default 0 | preserve UI order |
 
 **Indexes:** `billId`
@@ -493,10 +493,10 @@ Event detail + stats + attendee list.
     "none":   { "count": 1, "percent": 9 }
   },
   "attendees": [
-    { "memberId": "uuid", "name": "Mao", "pictureUrl": "...", "drinkChoice": "LIQUOR", "sharesMixer": false, "isMe": true }
+    { "memberId": "uuid", "name": "Mao", "pictureUrl": "...", "drinkChoice": "LIQUOR", "isMe": true }
   ],
   "mySubmission": {
-    "id": "uuid", "nameSnapshot": "Mao", "drinkChoice": "LIQUOR", "sharesMixer": false,
+    "id": "uuid", "nameSnapshot": "Mao", "drinkChoice": "LIQUOR",
     "updatedAt": "..."
   } | null
 }
@@ -511,7 +511,7 @@ Create or update my submission. Idempotent (upsert).
 
 **Request:**
 ```json
-{ "nameSnapshot": "Mao", "drinkChoice": "LIQUOR", "sharesMixer": false }
+{ "nameSnapshot": "Mao", "drinkChoice": "LIQUOR" }
 ```
 
 **Response 200:** `Submission`
@@ -615,10 +615,10 @@ Clears cookie. Response 204.
   "eventId": "uuid",
   "name": "งานรุ่น 35 - บิลร้านเฮง",
   "items": [
-    { "name": "ข้าวเย็น", "price": 1200, "itemType": "SHARED", "sortOrder": 0 },
-    { "name": "เหล้าขาว 1 ขวด", "price": 350, "itemType": "LIQUOR", "sortOrder": 1 },
-    { "name": "เบียร์ลีโอ 6 ขวด", "price": 600, "itemType": "BEER", "sortOrder": 2 },
-    { "name": "โซดา + น้ำแข็ง", "price": 180, "itemType": "MIXER", "sortOrder": 3 }
+    { "name": "ข้าวเย็น", "price": 1200, "itemType": "SHARED", "extraMemberIds": [], "sortOrder": 0 },
+    { "name": "เหล้าขาว 1 ขวด", "price": 350, "itemType": "LIQUOR", "extraMemberIds": [], "sortOrder": 1 },
+    { "name": "เบียร์ลีโอ 6 ขวด", "price": 600, "itemType": "BEER", "extraMemberIds": [], "sortOrder": 2 },
+    { "name": "โซดา + น้ำแข็ง", "price": 180, "itemType": "MIXER", "extraMemberIds": ["uuid-of-ice"], "sortOrder": 3 }
   ]
 }
 ```
@@ -787,8 +787,13 @@ Used by cron-job.org to keep Render warm.
 type ItemType = 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED';
 type DrinkChoice = 'LIQUOR' | 'BEER' | 'NONE';
 
-interface Item { id: string; price: number; itemType: ItemType; }
-interface Attendee { memberId: string; drinkChoice: DrinkChoice; sharesMixer: boolean; }
+interface Item {
+  id: string;
+  price: number;
+  itemType: ItemType;
+  extraMemberIds: string[]; // admin-added extras, union with type default
+}
+interface Attendee { memberId: string; drinkChoice: DrinkChoice; }
 interface Share { memberId: string; sharedAmount: number; drinkAmount: number; mixerAmount: number; amount: number; }
 
 export function calculateBill(items: Item[], attendees: Attendee[]): {
@@ -806,31 +811,32 @@ export function calculateBill(items: Item[], attendees: Attendee[]): {
     return { shares: [], warnings, total: 0 };
   }
 
-  const liquorEligible = attendees.filter(a => a.drinkChoice === 'LIQUOR');
-  const beerEligible   = attendees.filter(a => a.drinkChoice === 'BEER');
-  // MIXER: alcohol drinkers always share; non-alcohol opt in via sharesMixer flag
-  const mixerEligible  = attendees.filter(a => a.drinkChoice !== 'NONE' || a.sharesMixer);
+  // Default set per type (does NOT include extras yet)
+  const defaultEligible = (t: ItemType): Attendee[] => {
+    if (t === 'SHARED') return attendees;
+    if (t === 'LIQUOR') return attendees.filter(a => a.drinkChoice === 'LIQUOR');
+    if (t === 'BEER')   return attendees.filter(a => a.drinkChoice === 'BEER');
+    /* MIXER */         return attendees.filter(a => a.drinkChoice !== 'NONE'); // all alcohol drinkers
+  };
 
   for (const item of items) {
-    if (item.itemType === 'SHARED') {
-      const per = Math.ceil(item.price / attendees.length);
-      for (const a of attendees) shares.get(a.memberId)!.sharedAmount += per;
+    // eligible = type default ∪ extras (dedup by memberId)
+    const extras = new Set(item.extraMemberIds ?? []);
+    const base = defaultEligible(item.itemType);
+    const eligible = [
+      ...base,
+      ...attendees.filter(a => extras.has(a.memberId) && !base.includes(a)),
+    ];
 
-    } else if (item.itemType === 'LIQUOR') {
-      if (liquorEligible.length === 0) { warnings.push(`NO_LIQUOR_DRINKERS:${item.id}`); continue; }
-      const per = Math.ceil(item.price / liquorEligible.length);
-      for (const a of liquorEligible) shares.get(a.memberId)!.drinkAmount += per;
-
-    } else if (item.itemType === 'BEER') {
-      if (beerEligible.length === 0) { warnings.push(`NO_BEER_DRINKERS:${item.id}`); continue; }
-      const per = Math.ceil(item.price / beerEligible.length);
-      for (const a of beerEligible) shares.get(a.memberId)!.drinkAmount += per;
-
-    } else if (item.itemType === 'MIXER') {
-      if (mixerEligible.length === 0) { warnings.push(`NO_MIXER_DRINKERS:${item.id}`); continue; }
-      const per = Math.ceil(item.price / mixerEligible.length);
-      for (const a of mixerEligible) shares.get(a.memberId)!.mixerAmount += per;
+    if (eligible.length === 0) {
+      warnings.push(`NO_ELIGIBLE_${item.itemType}:${item.id}`);
+      continue;
     }
+    const per = Math.ceil(item.price / eligible.length);
+    const bucket = item.itemType === 'SHARED' ? 'sharedAmount'
+                 : item.itemType === 'MIXER'  ? 'mixerAmount'
+                                              : 'drinkAmount'; // LIQUOR | BEER
+    for (const a of eligible) shares.get(a.memberId)![bucket] += per;
   }
 
   let total = 0;

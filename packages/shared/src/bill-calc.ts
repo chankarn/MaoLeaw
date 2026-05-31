@@ -2,13 +2,15 @@
 // Canonical bill-splitting algorithm. Pure function — no IO, deterministic, easily testable.
 //
 // Rules (from PRD §3.3):
-//   - SHARED items   → split across ALL attendees.
-//   - LIQUOR items   → split across attendees with drinkChoice === 'LIQUOR'.
-//   - BEER items     → split across attendees with drinkChoice === 'BEER'.
-//   - MIXER items    → split across alcohol drinkers (LIQUOR/BEER) + NONE-drinkers who opted in via sharesMixer.
-//   - 'NONE' drinkers pay ONLY for SHARED items (+ MIXER if sharesMixer is true).
-//   - If no eligible drinkers exist for a drink-typed item, it is skipped and a warning is emitted
-//     (the host absorbs the cost — admin decides whether to fold this back into shared).
+//   - Each item has an itemType (LIQUOR/BEER/MIXER/SHARED) which picks the default eligible set:
+//       SHARED → all attendees
+//       LIQUOR → attendees with drinkChoice === 'LIQUOR'
+//       BEER   → attendees with drinkChoice === 'BEER'
+//       MIXER  → all alcohol drinkers (LIQUOR + BEER)
+//   - Each item also has `extraMemberIds` — admin-added extras that union with the default.
+//     This lets admin pull e.g. a 'NONE' drinker into a MIXER item, or a beer drinker into a
+//     LIQUOR item, on a per-item basis without touching their submission.
+//   - If the final eligible set is empty, the item is skipped and a warning is emitted.
 //   - Per-person amount uses Math.ceil so any rounding surplus favors the collector.
 //
 // Money is stored as integer baht (no decimals). Inputs that violate this contract throw.
@@ -19,12 +21,12 @@ export interface CalcItem {
   id: string;
   price: number;
   itemType: BillItemType;
+  extraMemberIds: string[];
 }
 
 export interface CalcAttendee {
   memberId: string;
   drinkChoice: DrinkChoice;
-  sharesMixer: boolean;
 }
 
 export interface CalcShare {
@@ -67,9 +69,26 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
     });
   }
 
-  const liquorEligible = attendees.filter((a) => a.drinkChoice === 'LIQUOR');
-  const beerEligible = attendees.filter((a) => a.drinkChoice === 'BEER');
-  const mixerEligible = attendees.filter((a) => a.drinkChoice !== 'NONE' || a.sharesMixer);
+  // Default eligible set per item type. Returns attendees (not just ids) for stable iteration.
+  function defaultEligible(type: BillItemType): CalcAttendee[] {
+    switch (type) {
+      case 'SHARED':
+        return attendees;
+      case 'LIQUOR':
+        return attendees.filter((a) => a.drinkChoice === 'LIQUOR');
+      case 'BEER':
+        return attendees.filter((a) => a.drinkChoice === 'BEER');
+      case 'MIXER':
+        return attendees.filter((a) => a.drinkChoice !== 'NONE');
+    }
+  }
+
+  // Which bucket to credit per type.
+  function bucketKey(type: BillItemType): keyof Pick<CalcShare, 'sharedAmount' | 'drinkAmount' | 'mixerAmount'> {
+    if (type === 'SHARED') return 'sharedAmount';
+    if (type === 'MIXER') return 'mixerAmount';
+    return 'drinkAmount'; // LIQUOR | BEER
+  }
 
   for (const item of items) {
     if (!Number.isInteger(item.price) || item.price < 0) {
@@ -77,42 +96,26 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
     }
     if (item.price === 0) continue;
 
-    if (item.itemType === 'SHARED') {
-      const per = Math.ceil(item.price / attendees.length);
-      for (const a of attendees) {
-        const s = shares.get(a.memberId);
-        if (s) s.sharedAmount += per;
-      }
-    } else if (item.itemType === 'LIQUOR') {
-      if (liquorEligible.length === 0) {
-        warnings.push(`NO_LIQUOR_DRINKERS:${item.id}`);
-        continue;
-      }
-      const per = Math.ceil(item.price / liquorEligible.length);
-      for (const a of liquorEligible) {
-        const s = shares.get(a.memberId);
-        if (s) s.drinkAmount += per;
-      }
-    } else if (item.itemType === 'BEER') {
-      if (beerEligible.length === 0) {
-        warnings.push(`NO_BEER_DRINKERS:${item.id}`);
-        continue;
-      }
-      const per = Math.ceil(item.price / beerEligible.length);
-      for (const a of beerEligible) {
-        const s = shares.get(a.memberId);
-        if (s) s.drinkAmount += per;
-      }
-    } else if (item.itemType === 'MIXER') {
-      if (mixerEligible.length === 0) {
-        warnings.push(`NO_MIXER_DRINKERS:${item.id}`);
-        continue;
-      }
-      const per = Math.ceil(item.price / mixerEligible.length);
-      for (const a of mixerEligible) {
-        const s = shares.get(a.memberId);
-        if (s) s.mixerAmount += per;
-      }
+    const extras = new Set(item.extraMemberIds ?? []);
+    const base = defaultEligible(item.itemType);
+    const baseIds = new Set(base.map((a) => a.memberId));
+
+    // eligible = base ∪ (attendees whose id is in extras), preserving order: base first, extras appended.
+    const eligible: CalcAttendee[] = [
+      ...base,
+      ...attendees.filter((a) => extras.has(a.memberId) && !baseIds.has(a.memberId)),
+    ];
+
+    if (eligible.length === 0) {
+      warnings.push(`NO_ELIGIBLE_${item.itemType}:${item.id}`);
+      continue;
+    }
+
+    const per = Math.ceil(item.price / eligible.length);
+    const key = bucketKey(item.itemType);
+    for (const a of eligible) {
+      const s = shares.get(a.memberId);
+      if (s) s[key] += per;
     }
   }
 

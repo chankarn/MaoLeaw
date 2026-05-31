@@ -3,170 +3,180 @@ import { describe, expect, it } from 'vitest';
 import { calculateBill, sumItemPrices, type CalcAttendee, type CalcItem } from './bill-calc';
 
 const attendees: CalcAttendee[] = [
-  { memberId: 'm1', drinkChoice: 'LIQUOR', sharesMixer: false },
-  { memberId: 'm2', drinkChoice: 'LIQUOR', sharesMixer: false },
-  { memberId: 'm3', drinkChoice: 'BEER', sharesMixer: false },
-  { memberId: 'm4', drinkChoice: 'NONE', sharesMixer: false },
+  { memberId: 'm1', drinkChoice: 'LIQUOR' },
+  { memberId: 'm2', drinkChoice: 'LIQUOR' },
+  { memberId: 'm3', drinkChoice: 'BEER' },
+  { memberId: 'm4', drinkChoice: 'NONE' },
 ];
+
+// helper: spread defaults so tests stay readable
+function item(partial: Partial<CalcItem> & Pick<CalcItem, 'id' | 'price' | 'itemType'>): CalcItem {
+  return { extraMemberIds: [], ...partial };
+}
 
 describe('calculateBill', () => {
   it('splits SHARED items equally across all attendees', () => {
-    const items: CalcItem[] = [{ id: 'i1', price: 400, itemType: 'SHARED' }];
-    const { shares } = calculateBill(items, attendees);
-
+    const { shares } = calculateBill([item({ id: 'i1', price: 400, itemType: 'SHARED' })], attendees);
     for (const s of shares) expect(s.sharedAmount).toBe(100);
   });
 
-  it('NONE drinker pays only for SHARED items', () => {
+  it('NONE drinker pays only for SHARED items by default', () => {
     const items: CalcItem[] = [
-      { id: 'i1', price: 400, itemType: 'SHARED' },
-      { id: 'i2', price: 600, itemType: 'LIQUOR' },
-      { id: 'i3', price: 200, itemType: 'BEER' },
+      item({ id: 'i1', price: 400, itemType: 'SHARED' }),
+      item({ id: 'i2', price: 600, itemType: 'LIQUOR' }),
+      item({ id: 'i3', price: 200, itemType: 'BEER' }),
     ];
     const { shares } = calculateBill(items, attendees);
     const none = shares.find((s) => s.memberId === 'm4');
-
     expect(none?.sharedAmount).toBe(100);
     expect(none?.drinkAmount).toBe(0);
+    expect(none?.mixerAmount).toBe(0);
     expect(none?.amount).toBe(100);
   });
 
-  it('LIQUOR items split only among liquor drinkers', () => {
-    const items: CalcItem[] = [{ id: 'i1', price: 600, itemType: 'LIQUOR' }];
-    const { shares } = calculateBill(items, attendees);
-
+  it('LIQUOR items split only among liquor drinkers (default)', () => {
+    const { shares } = calculateBill([item({ id: 'i1', price: 600, itemType: 'LIQUOR' })], attendees);
     expect(shares.find((s) => s.memberId === 'm1')?.drinkAmount).toBe(300);
     expect(shares.find((s) => s.memberId === 'm2')?.drinkAmount).toBe(300);
     expect(shares.find((s) => s.memberId === 'm3')?.drinkAmount).toBe(0);
     expect(shares.find((s) => s.memberId === 'm4')?.drinkAmount).toBe(0);
   });
 
-  it('BEER items split only among beer drinkers', () => {
-    const items: CalcItem[] = [{ id: 'i1', price: 250, itemType: 'BEER' }];
-    const { shares } = calculateBill(items, attendees);
-
-    expect(shares.find((s) => s.memberId === 'm3')?.drinkAmount).toBe(250);
-    expect(shares.find((s) => s.memberId === 'm1')?.drinkAmount).toBe(0);
-  });
-
-  it('rounds UP (ceil) — collector favored', () => {
-    // 100 / 3 = 33.33 → ceil 34, each pays 34, total 102 (host gets 2 baht surplus)
-    const three: CalcAttendee[] = [
-      { memberId: 'a', drinkChoice: 'LIQUOR', sharesMixer: false },
-      { memberId: 'b', drinkChoice: 'LIQUOR', sharesMixer: false },
-      { memberId: 'c', drinkChoice: 'LIQUOR', sharesMixer: false },
-    ];
-    const items: CalcItem[] = [{ id: 'i1', price: 100, itemType: 'SHARED' }];
-    const { shares, total } = calculateBill(items, three);
-
-    for (const s of shares) expect(s.sharedAmount).toBe(34);
-    expect(total).toBe(102);
-  });
-
-  it('emits NO_LIQUOR_DRINKERS warning and skips item', () => {
-    const noLiquor: CalcAttendee[] = [
-      { memberId: 'a', drinkChoice: 'BEER', sharesMixer: false },
-      { memberId: 'b', drinkChoice: 'NONE', sharesMixer: false },
-    ];
-    const items: CalcItem[] = [
-      { id: 'i1', price: 500, itemType: 'LIQUOR' },
-      { id: 'i2', price: 100, itemType: 'SHARED' },
-    ];
-    const { shares, warnings, total } = calculateBill(items, noLiquor);
-
-    expect(warnings).toContain('NO_LIQUOR_DRINKERS:i1');
-    // Only shared item contributed: each pays ceil(100/2) = 50
-    expect(total).toBe(100);
-    for (const s of shares) expect(s.amount).toBe(50);
-  });
-
-  it('emits NO_ATTENDEES warning when attendee list empty', () => {
-    const { shares, warnings, total } = calculateBill([{ id: 'i1', price: 100, itemType: 'SHARED' }], []);
-    expect(shares).toEqual([]);
-    expect(warnings).toContain('NO_ATTENDEES');
-    expect(total).toBe(0);
-  });
-
-  it('throws on negative price', () => {
-    expect(() =>
-      calculateBill([{ id: 'i1', price: -5, itemType: 'SHARED' }], attendees),
-    ).toThrow(/Invalid item price/);
-  });
-
-  it('throws on non-integer price', () => {
-    expect(() =>
-      calculateBill([{ id: 'i1', price: 100.5, itemType: 'SHARED' }], attendees),
-    ).toThrow(/Invalid item price/);
-  });
-
-  it('ignores zero-price items without error', () => {
-    const { shares, total } = calculateBill([{ id: 'i1', price: 0, itemType: 'SHARED' }], attendees);
-    for (const s of shares) expect(s.amount).toBe(0);
-    expect(total).toBe(0);
-  });
-
-  it('MIXER items split among alcohol drinkers + opted-in NONE drinkers', () => {
-    // m1 (LIQUOR), m2 (LIQUOR), m3 (BEER) auto-eligible; m4 (NONE) is NOT eligible by default
-    const items: CalcItem[] = [{ id: 'i1', price: 180, itemType: 'MIXER' }];
-    const { shares } = calculateBill(items, attendees);
-
-    // 3 eligible → ceil(180/3) = 60 each
+  it('MIXER default = all alcohol drinkers (LIQUOR + BEER)', () => {
+    // m1, m2 (LIQUOR) + m3 (BEER) = 3 eligible; m4 (NONE) excluded
+    const { shares } = calculateBill([item({ id: 'i1', price: 180, itemType: 'MIXER' })], attendees);
     expect(shares.find((s) => s.memberId === 'm1')?.mixerAmount).toBe(60);
     expect(shares.find((s) => s.memberId === 'm2')?.mixerAmount).toBe(60);
     expect(shares.find((s) => s.memberId === 'm3')?.mixerAmount).toBe(60);
     expect(shares.find((s) => s.memberId === 'm4')?.mixerAmount).toBe(0);
   });
 
-  it('MIXER includes NONE drinker when sharesMixer=true', () => {
-    const withOptIn: CalcAttendee[] = [
-      { memberId: 'm1', drinkChoice: 'LIQUOR', sharesMixer: false },
-      { memberId: 'm2', drinkChoice: 'NONE', sharesMixer: true },
-      { memberId: 'm3', drinkChoice: 'NONE', sharesMixer: false },
-    ];
-    const items: CalcItem[] = [{ id: 'i1', price: 120, itemType: 'MIXER' }];
-    const { shares } = calculateBill(items, withOptIn);
-
-    // 2 eligible (m1, m2) → ceil(120/2) = 60
-    expect(shares.find((s) => s.memberId === 'm1')?.mixerAmount).toBe(60);
-    expect(shares.find((s) => s.memberId === 'm2')?.mixerAmount).toBe(60);
-    expect(shares.find((s) => s.memberId === 'm3')?.mixerAmount).toBe(0);
+  it('extraMemberIds adds a NONE drinker to a MIXER item', () => {
+    // Pull m4 (NONE) into the mixer split → 4 eligible
+    const { shares } = calculateBill(
+      [item({ id: 'i1', price: 200, itemType: 'MIXER', extraMemberIds: ['m4'] })],
+      attendees,
+    );
+    expect(shares.find((s) => s.memberId === 'm4')?.mixerAmount).toBe(50);
+    expect(shares.find((s) => s.memberId === 'm1')?.mixerAmount).toBe(50);
   });
 
-  it('emits NO_MIXER_DRINKERS warning when all NONE and none opted in', () => {
-    const noneOnly: CalcAttendee[] = [
-      { memberId: 'a', drinkChoice: 'NONE', sharesMixer: false },
-      { memberId: 'b', drinkChoice: 'NONE', sharesMixer: false },
-    ];
-    const items: CalcItem[] = [{ id: 'i1', price: 100, itemType: 'MIXER' }];
-    const { warnings, total } = calculateBill(items, noneOnly);
+  it('extraMemberIds can cross types — beer drinker added to a LIQUOR item', () => {
+    // Default LIQUOR: m1, m2. Add m3 (BEER) → 3 eligible.
+    const { shares } = calculateBill(
+      [item({ id: 'i1', price: 300, itemType: 'LIQUOR', extraMemberIds: ['m3'] })],
+      attendees,
+    );
+    expect(shares.find((s) => s.memberId === 'm3')?.drinkAmount).toBe(100);
+    expect(shares.find((s) => s.memberId === 'm1')?.drinkAmount).toBe(100);
+  });
 
-    expect(warnings).toContain('NO_MIXER_DRINKERS:i1');
+  it('extraMemberIds is a UNION — duplicates ignored, base members not double-counted', () => {
+    // m1 is already in LIQUOR default; adding to extras should not double their charge.
+    const { shares } = calculateBill(
+      [item({ id: 'i1', price: 200, itemType: 'LIQUOR', extraMemberIds: ['m1', 'm2'] })],
+      attendees,
+    );
+    expect(shares.find((s) => s.memberId === 'm1')?.drinkAmount).toBe(100);
+    expect(shares.find((s) => s.memberId === 'm2')?.drinkAmount).toBe(100);
+  });
+
+  it('SHARED items: extras have no extra effect (everyone already in)', () => {
+    const { shares } = calculateBill(
+      [item({ id: 'i1', price: 400, itemType: 'SHARED', extraMemberIds: ['m1'] })],
+      attendees,
+    );
+    for (const s of shares) expect(s.sharedAmount).toBe(100);
+  });
+
+  it('rounds UP (ceil) — collector favored', () => {
+    const three: CalcAttendee[] = [
+      { memberId: 'a', drinkChoice: 'LIQUOR' },
+      { memberId: 'b', drinkChoice: 'LIQUOR' },
+      { memberId: 'c', drinkChoice: 'LIQUOR' },
+    ];
+    const { shares, total } = calculateBill([item({ id: 'i1', price: 100, itemType: 'SHARED' })], three);
+    for (const s of shares) expect(s.sharedAmount).toBe(34);
+    expect(total).toBe(102);
+  });
+
+  it('emits NO_ELIGIBLE_LIQUOR warning when no one qualifies and no extras', () => {
+    const noLiquor: CalcAttendee[] = [
+      { memberId: 'a', drinkChoice: 'BEER' },
+      { memberId: 'b', drinkChoice: 'NONE' },
+    ];
+    const { warnings, total } = calculateBill(
+      [item({ id: 'i1', price: 500, itemType: 'LIQUOR' }), item({ id: 'i2', price: 100, itemType: 'SHARED' })],
+      noLiquor,
+    );
+    expect(warnings).toContain('NO_ELIGIBLE_LIQUOR:i1');
+    expect(total).toBe(100);
+  });
+
+  it('extras can rescue an item that would otherwise have no eligible (e.g. no liquor drinkers)', () => {
+    const noLiquor: CalcAttendee[] = [
+      { memberId: 'a', drinkChoice: 'BEER' },
+      { memberId: 'b', drinkChoice: 'NONE' },
+    ];
+    const { shares, warnings } = calculateBill(
+      [item({ id: 'i1', price: 100, itemType: 'LIQUOR', extraMemberIds: ['a'] })],
+      noLiquor,
+    );
+    expect(warnings).not.toContain('NO_ELIGIBLE_LIQUOR:i1');
+    expect(shares.find((s) => s.memberId === 'a')?.drinkAmount).toBe(100);
+  });
+
+  it('emits NO_ATTENDEES when attendee list empty', () => {
+    const { shares, warnings, total } = calculateBill(
+      [item({ id: 'i1', price: 100, itemType: 'SHARED' })],
+      [],
+    );
+    expect(shares).toEqual([]);
+    expect(warnings).toContain('NO_ATTENDEES');
     expect(total).toBe(0);
   });
 
-  it('full integration: shared + liquor + beer with realistic prices', () => {
-    // 4 attendees: 2 liquor, 1 beer, 1 none
-    // Items: food 1200 shared, whisky 700 liquor, beer 360 beer
-    const items: CalcItem[] = [
-      { id: 'food', price: 1200, itemType: 'SHARED' },
-      { id: 'whisky', price: 700, itemType: 'LIQUOR' },
-      { id: 'beer', price: 360, itemType: 'BEER' },
-    ];
-    const { shares, total } = calculateBill(items, attendees);
+  it('throws on negative price', () => {
+    expect(() => calculateBill([item({ id: 'i1', price: -5, itemType: 'SHARED' })], attendees)).toThrow(
+      /Invalid item price/,
+    );
+  });
 
-    // shared: ceil(1200/4) = 300 each
-    // liquor: ceil(700/2) = 350 for m1, m2
-    // beer:   ceil(360/1) = 360 for m3
+  it('throws on non-integer price', () => {
+    expect(() => calculateBill([item({ id: 'i1', price: 100.5, itemType: 'SHARED' })], attendees)).toThrow(
+      /Invalid item price/,
+    );
+  });
+
+  it('ignores zero-price items', () => {
+    const { shares, total } = calculateBill([item({ id: 'i1', price: 0, itemType: 'SHARED' })], attendees);
+    for (const s of shares) expect(s.amount).toBe(0);
+    expect(total).toBe(0);
+  });
+
+  it('full integration: shared + liquor + beer + mixer with realistic extras', () => {
+    // 4 attendees: m1, m2 LIQUOR; m3 BEER; m4 NONE
+    // Items:
+    //   food 1200 SHARED                        → ceil(1200/4)=300 each
+    //   whisky 700 LIQUOR                       → ceil(700/2)=350 for m1, m2
+    //   beer 360 BEER                           → 360 for m3
+    //   soda 180 MIXER + extras=[m4]            → m1,m2,m3,m4 each ceil(180/4)=45
+    const items: CalcItem[] = [
+      item({ id: 'food', price: 1200, itemType: 'SHARED' }),
+      item({ id: 'whisky', price: 700, itemType: 'LIQUOR' }),
+      item({ id: 'beer', price: 360, itemType: 'BEER' }),
+      item({ id: 'soda', price: 180, itemType: 'MIXER', extraMemberIds: ['m4'] }),
+    ];
+    const { shares } = calculateBill(items, attendees);
     const m1 = shares.find((s) => s.memberId === 'm1')!;
     const m2 = shares.find((s) => s.memberId === 'm2')!;
     const m3 = shares.find((s) => s.memberId === 'm3')!;
     const m4 = shares.find((s) => s.memberId === 'm4')!;
 
-    expect(m1.amount).toBe(650);
-    expect(m2.amount).toBe(650);
-    expect(m3.amount).toBe(660);
-    expect(m4.amount).toBe(300);
-    expect(total).toBe(2260);
+    expect(m1.amount).toBe(300 + 350 + 45);
+    expect(m2.amount).toBe(300 + 350 + 45);
+    expect(m3.amount).toBe(300 + 360 + 45);
+    expect(m4.amount).toBe(300 + 45);
   });
 });
 
@@ -174,8 +184,8 @@ describe('sumItemPrices', () => {
   it('sums prices', () => {
     expect(
       sumItemPrices([
-        { id: 'a', price: 100, itemType: 'SHARED' },
-        { id: 'b', price: 50, itemType: 'BEER' },
+        { id: 'a', price: 100, itemType: 'SHARED', extraMemberIds: [] },
+        { id: 'b', price: 50, itemType: 'BEER', extraMemberIds: [] },
       ]),
     ).toBe(150);
   });

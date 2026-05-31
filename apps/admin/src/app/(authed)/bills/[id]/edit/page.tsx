@@ -32,6 +32,7 @@ export default function EditBillPage() {
           name: it.name,
           price: it.price,
           itemType: it.itemType,
+          extraMemberIds: it.extraMemberIds ?? [],
           sortOrder: it.sortOrder,
         })),
       }}

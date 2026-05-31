@@ -2,27 +2,47 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { calculateBill, type BillItemType } from '@maoleaw/shared';
+import { calculateBill, type BillItemType, type DrinkChoice } from '@maoleaw/shared';
 import { useEventAttendees, useEventsForBill } from '@/hooks/use-events';
 import { useCreateBill, useUpdateBill } from '@/hooks/use-bills';
-import { formatBaht } from '@/lib/utils';
+import { cn, formatBaht } from '@/lib/utils';
 
 interface RowState {
   tempId: string;
   name: string;
   price: number | '';
   itemType: BillItemType;
+  extraMemberIds: string[];
+  expanded: boolean; // local UI state for the per-row member picker
 }
 
 function newRow(itemType: BillItemType = 'SHARED'): RowState {
-  return { tempId: crypto.randomUUID(), name: '', price: '', itemType };
+  return { tempId: crypto.randomUUID(), name: '', price: '', itemType, extraMemberIds: [], expanded: false };
+}
+
+/** Members who share an item by default, based purely on item type. */
+function defaultMemberIdsForType(
+  type: BillItemType,
+  attendees: { memberId: string; drinkChoice: DrinkChoice }[],
+): string[] {
+  switch (type) {
+    case 'SHARED':
+      return attendees.map((a) => a.memberId);
+    case 'LIQUOR':
+      return attendees.filter((a) => a.drinkChoice === 'LIQUOR').map((a) => a.memberId);
+    case 'BEER':
+      return attendees.filter((a) => a.drinkChoice === 'BEER').map((a) => a.memberId);
+    case 'MIXER':
+      return attendees.filter((a) => a.drinkChoice !== 'NONE').map((a) => a.memberId);
+  }
 }
 
 export interface BillFormInitial {
@@ -30,7 +50,13 @@ export interface BillFormInitial {
   name: string;
   eventId: string;
   eventName: string;
-  items: Array<{ name: string; price: number; itemType: BillItemType; sortOrder: number }>;
+  items: Array<{
+    name: string;
+    price: number;
+    itemType: BillItemType;
+    extraMemberIds: string[];
+    sortOrder: number;
+  }>;
 }
 
 interface Props {
@@ -53,6 +79,8 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
           name: it.name,
           price: it.price,
           itemType: it.itemType,
+          extraMemberIds: it.extraMemberIds ?? [],
+          expanded: false,
         }))
       : [newRow()],
   );
@@ -73,16 +101,17 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
     if (!attendees.data) return null;
     const items = rows
       .filter((r) => r.name.trim() && typeof r.price === 'number' && r.price > 0)
-      .map((r) => ({ id: r.tempId, price: r.price as number, itemType: r.itemType }));
+      .map((r) => ({
+        id: r.tempId,
+        price: r.price as number,
+        itemType: r.itemType,
+        extraMemberIds: r.extraMemberIds,
+      }));
     if (items.length === 0) return null;
     try {
       return calculateBill(
         items,
-        attendees.data.map((a) => ({
-          memberId: a.memberId,
-          drinkChoice: a.drinkChoice,
-          sharesMixer: a.sharesMixer,
-        })),
+        attendees.data.map((a) => ({ memberId: a.memberId, drinkChoice: a.drinkChoice })),
       );
     } catch {
       return null;
@@ -102,6 +131,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
       name: r.name.trim(),
       price: r.price as number,
       itemType: r.itemType,
+      extraMemberIds: r.extraMemberIds,
       sortOrder: idx,
     }));
 
@@ -183,54 +213,132 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
               </Button>
             </div>
 
-            <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_120px_160px_40px] gap-2 px-1 text-xs text-muted-foreground">
+            <div className="space-y-3">
+              <div className="grid grid-cols-[1fr_110px_150px_140px_40px] gap-2 px-1 text-xs text-muted-foreground">
                 <span>ชื่อ</span>
                 <span>ราคา (฿)</span>
                 <span>ประเภท</span>
+                <span>ร่วมหาร</span>
                 <span />
               </div>
 
-              {rows.map((r, idx) => (
-                <div key={r.tempId} className="grid grid-cols-[1fr_120px_160px_40px] gap-2">
-                  <Input
-                    value={r.name}
-                    onChange={(e) => updateRow(idx, { name: e.target.value })}
-                    placeholder="ชื่อรายการ"
-                    maxLength={100}
-                  />
-                  <Input
-                    type="number"
-                    min={0}
-                    value={r.price === '' ? '' : r.price}
-                    onChange={(e) =>
-                      updateRow(idx, {
-                        price: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)),
-                      })
-                    }
-                  />
-                  <Select value={r.itemType} onValueChange={(v) => updateRow(idx, { itemType: v as BillItemType })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LIQUOR">🥃 เหล้า</SelectItem>
-                      <SelectItem value="BEER">🍺 เบียร์</SelectItem>
-                      <SelectItem value="MIXER">🧊 มิกเซอร์</SelectItem>
-                      <SelectItem value="SHARED">👥 หารทุกคน</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeRow(idx)}
-                    disabled={rows.length === 1}
-                    type="button"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+              {rows.map((r, idx) => {
+                const baseIds = attendees.data
+                  ? defaultMemberIdsForType(r.itemType, attendees.data)
+                  : [];
+                const baseSet = new Set(baseIds);
+                const eligibleCount = new Set([...baseIds, ...r.extraMemberIds]).size;
+                const candidateExtras = (attendees.data ?? []).filter((a) => !baseSet.has(a.memberId));
+
+                return (
+                  <div key={r.tempId} className="space-y-2">
+                    <div className="grid grid-cols-[1fr_110px_150px_140px_40px] gap-2">
+                      <Input
+                        value={r.name}
+                        onChange={(e) => updateRow(idx, { name: e.target.value })}
+                        placeholder="ชื่อรายการ"
+                        maxLength={100}
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        value={r.price === '' ? '' : r.price}
+                        onChange={(e) =>
+                          updateRow(idx, {
+                            price: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)),
+                          })
+                        }
+                      />
+                      <Select
+                        value={r.itemType}
+                        onValueChange={(v) =>
+                          updateRow(idx, { itemType: v as BillItemType, extraMemberIds: [] })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="LIQUOR">🥃 เหล้า</SelectItem>
+                          <SelectItem value="BEER">🍺 เบียร์</SelectItem>
+                          <SelectItem value="MIXER">🧊 มิกเซอร์</SelectItem>
+                          <SelectItem value="SHARED">👥 หารทุกคน</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateRow(idx, { expanded: !r.expanded })}
+                        disabled={!attendees.data || candidateExtras.length === 0}
+                        className="justify-start gap-1.5 px-2"
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        <span className="font-mono tabular-nums">{eligibleCount}</span>
+                        <span className="text-xs text-muted-foreground">คน</span>
+                        {r.extraMemberIds.length > 0 && (
+                          <span className="ml-auto rounded bg-drink-mixer/15 px-1 text-[10px] font-medium text-drink-mixer">
+                            +{r.extraMemberIds.length}
+                          </span>
+                        )}
+                        {candidateExtras.length > 0 &&
+                          (r.expanded ? (
+                            <ChevronUp className="ml-auto h-3.5 w-3.5 opacity-60" />
+                          ) : (
+                            <ChevronDown className="ml-auto h-3.5 w-3.5 opacity-60" />
+                          ))}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeRow(idx)}
+                        disabled={rows.length === 1}
+                        type="button"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {r.expanded && candidateExtras.length > 0 && (
+                      <div className="ml-1 rounded-md border bg-muted/30 p-3">
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">
+                          เพิ่มคนเข้ารายการนี้เป็นพิเศษ — คน default ตามประเภท
+                          ({baseIds.length} คน) ร่วมหารอยู่แล้ว
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {candidateExtras.map((a) => {
+                            const checked = r.extraMemberIds.includes(a.memberId);
+                            return (
+                              <label
+                                key={a.memberId}
+                                className={cn(
+                                  'flex cursor-pointer items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm transition-colors',
+                                  checked && 'border-drink-mixer bg-drink-mixer/5',
+                                )}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onChange={(e) =>
+                                    updateRow(idx, {
+                                      extraMemberIds: e.target.checked
+                                        ? [...r.extraMemberIds, a.memberId]
+                                        : r.extraMemberIds.filter((id) => id !== a.memberId),
+                                    })
+                                  }
+                                />
+                                <span>{a.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  ({drinkLabel(a.drinkChoice)})
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -288,4 +396,8 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
       </div>
     </div>
   );
+}
+
+function drinkLabel(c: DrinkChoice): string {
+  return c === 'LIQUOR' ? 'เหล้า' : c === 'BEER' ? 'เบียร์' : 'ไม่กิน';
 }

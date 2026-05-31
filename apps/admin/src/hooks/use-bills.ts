@@ -24,7 +24,14 @@ interface AdminBillDetail {
   status: 'DRAFT' | 'SENT' | 'CLOSED';
   totalAmount: number;
   event: { id: string; name: string; eventDate: string };
-  items: Array<{ id: string; name: string; price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED'; sortOrder: number }>;
+  items: Array<{
+    id: string;
+    name: string;
+    price: number;
+    itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED';
+    extraMemberIds: string[];
+    sortOrder: number;
+  }>;
   shares: Array<{
     id: string;
     memberId: string;

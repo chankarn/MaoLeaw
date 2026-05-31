@@ -587,26 +587,22 @@ function DrinkBadge({ choice }: { choice: 'LIQUOR'|'BEER'|'NONE' }) {
 
 function JoinDialog({ open, onOpenChange, eventId, existing, onSuccess }: {
   open: boolean; onOpenChange: (v: boolean) => void; eventId: string;
-  existing: { nameSnapshot: string; drinkChoice: 'LIQUOR'|'BEER'|'NONE'; sharesMixer: boolean } | null;
+  existing: { nameSnapshot: string; drinkChoice: 'LIQUOR'|'BEER'|'NONE' } | null;
   onSuccess: () => void;
 }) {
   const { mutateAsync: submit, isPending } = useSubmitAttendance(eventId);
   const [name, setName] = useState(existing?.nameSnapshot ?? '');
   const [drink, setDrink] = useState<'LIQUOR'|'BEER'|'NONE'|''>(existing?.drinkChoice ?? '');
-  const [sharesMixer, setSharesMixer] = useState<boolean>(existing?.sharesMixer ?? false);
 
   const canSubmit = name.trim() && drink && !isPending;
 
   async function handleSubmit() {
-    await submit({
-      nameSnapshot: name.trim(),
-      drinkChoice: drink as any,
-      sharesMixer: drink === 'NONE' ? sharesMixer : false,
-    });
+    await submit({ nameSnapshot: name.trim(), drinkChoice: drink as any });
     onSuccess();
     onOpenChange(false);
   }
 
+  // Note: ไม่มี mixer opt-in ที่นี่อีกแล้ว — admin pick รายคนเข้ารายการเองตอนสร้างบิล
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[400px]">
@@ -627,15 +623,6 @@ function JoinDialog({ open, onOpenChange, eventId, existing, onSuccess }: {
               ))}
             </RadioGroup>
           </div>
-          {drink === 'NONE' && (
-            <Label className="flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 has-[:checked]:border-drink-mixer has-[:checked]:bg-drink-mixer/5">
-              <Checkbox checked={sharesMixer} onCheckedChange={(v) => setSharesMixer(!!v)} className="mt-0.5"/>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">🧊 กินมิกเซอร์ด้วย</p>
-                <p className="text-xs text-muted-foreground">ร่วมหารค่าโซดา/น้ำแข็ง/น้ำผลไม้ (ยังไม่จ่ายค่าเหล้า/เบียร์)</p>
-              </div>
-            </Label>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
@@ -988,7 +975,22 @@ import { calculateBill } from '@maoleaw/shared/bill-calc';
 import { useEventOptions } from '@/hooks/use-events';
 import { useEventAttendees } from '@/hooks/use-attendees';
 
-type Row = { tempId: string; name: string; price: number; itemType: 'LIQUOR'|'BEER'|'MIXER'|'SHARED' };
+type ItemType = 'LIQUOR'|'BEER'|'MIXER'|'SHARED';
+type Row = {
+  tempId: string;
+  name: string;
+  price: number;
+  itemType: ItemType;
+  extraMemberIds: string[]; // admin-added extras (รายคน รายรายการ)
+};
+
+// คนที่ default ร่วมหารตามประเภท (ไว้คำนวณว่า extras picker ควรโชว์ใคร)
+function defaultMembersForType(type: ItemType, attendees: { memberId: string; drinkChoice: 'LIQUOR'|'BEER'|'NONE' }[]) {
+  if (type === 'SHARED') return attendees.map(a => a.memberId);
+  if (type === 'LIQUOR') return attendees.filter(a => a.drinkChoice === 'LIQUOR').map(a => a.memberId);
+  if (type === 'BEER')   return attendees.filter(a => a.drinkChoice === 'BEER').map(a => a.memberId);
+  /* MIXER */            return attendees.filter(a => a.drinkChoice !== 'NONE').map(a => a.memberId);
+}
 
 export default function BillCreatePage() {
   const [eventId, setEventId] = useState('');
@@ -1001,8 +1003,10 @@ export default function BillCreatePage() {
 
   // Live preview
   const preview = attendees ? calculateBill(
-    rows.filter(r => r.name && r.price > 0).map(r => ({ id: r.tempId, price: Number(r.price), itemType: r.itemType })),
-    attendees.map(a => ({ memberId: a.memberId, drinkChoice: a.drinkChoice, sharesMixer: a.sharesMixer }))
+    rows
+      .filter(r => r.name && r.price > 0)
+      .map(r => ({ id: r.tempId, price: Number(r.price), itemType: r.itemType, extraMemberIds: r.extraMemberIds })),
+    attendees.map(a => ({ memberId: a.memberId, drinkChoice: a.drinkChoice })),
   ) : null;
 
   return (
@@ -1038,28 +1042,78 @@ export default function BillCreatePage() {
             </div>
 
             <div className="space-y-2">
-              <div className="grid grid-cols-[1fr,120px,140px,40px] gap-2 px-1 text-xs text-muted-foreground">
-                <span>ชื่อ</span><span>ราคา (฿)</span><span>ประเภท</span><span/>
+              <div className="grid grid-cols-[1fr,110px,140px,140px,40px] gap-2 px-1 text-xs text-muted-foreground">
+                <span>ชื่อ</span><span>ราคา (฿)</span><span>ประเภท</span><span>ร่วมหาร</span><span/>
               </div>
 
-              {rows.map((r, idx) => (
-                <div key={r.tempId} className="grid grid-cols-[1fr,120px,140px,40px] gap-2">
-                  <Input value={r.name} onChange={e => updateRow(idx, { name: e.target.value })} placeholder="ชื่อรายการ"/>
-                  <Input type="number" min={0} value={r.price || ''} onChange={e => updateRow(idx, { price: Number(e.target.value) })}/>
-                  <Select value={r.itemType} onValueChange={(v) => updateRow(idx, { itemType: v as any })}>
-                    <SelectTrigger><SelectValue/></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LIQUOR">🥃 เหล้า</SelectItem>
-                      <SelectItem value="BEER">🍺 เบียร์</SelectItem>
-                      <SelectItem value="MIXER">🧊 มิกเซอร์</SelectItem>
-                      <SelectItem value="SHARED">👥 หารทุกคน</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="ghost" size="icon" onClick={() => removeRow(idx)} disabled={rows.length === 1}>
-                    <Trash2 className="h-4 w-4"/>
-                  </Button>
-                </div>
-              ))}
+              {rows.map((r, idx) => {
+                const baseIds = attendees ? defaultMembersForType(r.itemType, attendees) : [];
+                const totalSharers = new Set([...baseIds, ...r.extraMemberIds]).size;
+                return (
+                  <div key={r.tempId} className="grid grid-cols-[1fr,110px,140px,140px,40px] gap-2">
+                    <Input value={r.name} onChange={e => updateRow(idx, { name: e.target.value })} placeholder="ชื่อรายการ"/>
+                    <Input type="number" min={0} value={r.price || ''} onChange={e => updateRow(idx, { price: Number(e.target.value) })}/>
+                    <Select
+                      value={r.itemType}
+                      onValueChange={(v) => updateRow(idx, { itemType: v as ItemType, extraMemberIds: [] /* reset extras on type change */ })}
+                    >
+                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LIQUOR">🥃 เหล้า</SelectItem>
+                        <SelectItem value="BEER">🍺 เบียร์</SelectItem>
+                        <SelectItem value="MIXER">🧊 มิกเซอร์</SelectItem>
+                        <SelectItem value="SHARED">👥 หารทุกคน</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* Per-row extras picker */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="justify-start gap-1.5">
+                          👥 <span className="font-mono tabular-nums">{totalSharers}</span> คน
+                          {r.extraMemberIds.length > 0 && <Badge variant="secondary" className="ml-auto h-5 px-1.5 text-[10px]">+{r.extraMemberIds.length}</Badge>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-[280px] p-0">
+                        <div className="border-b p-3">
+                          <p className="text-xs font-medium text-muted-foreground">เพิ่มคนเข้ารายการนี้เป็นพิเศษ</p>
+                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                            (คนที่ default ตามประเภทอยู่แล้วไม่ขึ้นในลิสต์นี้)
+                          </p>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto py-1">
+                          {attendees?.filter(a => !baseIds.includes(a.memberId)).map(a => {
+                            const checked = r.extraMemberIds.includes(a.memberId);
+                            return (
+                              <label key={a.memberId} className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-muted/50">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) => updateRow(idx, {
+                                    extraMemberIds: v
+                                      ? [...r.extraMemberIds, a.memberId]
+                                      : r.extraMemberIds.filter(id => id !== a.memberId),
+                                  })}
+                                />
+                                <span className="text-sm">{a.name}</span>
+                                <DrinkBadge choice={a.drinkChoice}/>
+                              </label>
+                            );
+                          })}
+                          {attendees?.filter(a => !baseIds.includes(a.memberId)).length === 0 && (
+                            <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+                              ทุกคนหารรายการนี้ default อยู่แล้ว
+                            </p>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    <Button variant="ghost" size="icon" onClick={() => removeRow(idx)} disabled={rows.length === 1}>
+                      <Trash2 className="h-4 w-4"/>
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -1249,14 +1303,22 @@ export const MOCK_EVENTS = [
 ];
 
 export const MOCK_ATTENDEES = [
-  { memberId: 'm1', name: 'เมา',   pictureUrl: '...', drinkChoice: 'LIQUOR', sharesMixer: false, isMe: true  },
-  { memberId: 'm2', name: 'แตงโม', pictureUrl: '...', drinkChoice: 'BEER',   sharesMixer: false, isMe: false },
-  { memberId: 'm3', name: 'ไอซ์',  pictureUrl: '...', drinkChoice: 'NONE',   sharesMixer: true,  isMe: false },
-  { memberId: 'm4', name: 'มะนาว', pictureUrl: '...', drinkChoice: 'NONE',   sharesMixer: false, isMe: false },
+  { memberId: 'm1', name: 'เมา',   pictureUrl: '...', drinkChoice: 'LIQUOR', isMe: true  },
+  { memberId: 'm2', name: 'แตงโม', pictureUrl: '...', drinkChoice: 'BEER',   isMe: false },
+  { memberId: 'm3', name: 'ไอซ์',  pictureUrl: '...', drinkChoice: 'NONE',   isMe: false },
+  { memberId: 'm4', name: 'มะนาว', pictureUrl: '...', drinkChoice: 'NONE',   isMe: false },
+];
+
+// Admin pick "ไอซ์" (m3) ให้ร่วมหารรายการมิกเซอร์เป็นพิเศษ ผ่าน extraMemberIds
+export const MOCK_BILL_ITEMS = [
+  { name: 'อาหาร',       price: 720, itemType: 'SHARED', extraMemberIds: [] },
+  { name: 'เหล้าขาว',    price: 400, itemType: 'LIQUOR', extraMemberIds: [] },
+  { name: 'เบียร์',      price: 300, itemType: 'BEER',   extraMemberIds: [] },
+  { name: 'โซดา+น้ำแข็ง', price: 180, itemType: 'MIXER',  extraMemberIds: ['m3'] },
 ];
 
 export const MOCK_BILL_PREVIEW = {
-  // Bill: SHARED ฿720 (÷4) + LIQUOR ฿400 (÷1) + BEER ฿300 (÷1) + MIXER ฿180 (÷3: m1,m2,m3)
+  // SHARED ฿720 (÷4=180) + LIQUOR ฿400 (÷1: m1) + BEER ฿300 (÷1: m2) + MIXER ฿180 (÷3: m1,m2,m3)
   shares: [
     { memberId: 'm1', amount: 640, sharedAmount: 180, drinkAmount: 400, mixerAmount: 60 },
     { memberId: 'm2', amount: 540, sharedAmount: 180, drinkAmount: 300, mixerAmount: 60 },
@@ -1287,7 +1349,7 @@ export const MOCK_BILL_PREVIEW = {
 | `sonner` | Toasts |
 | `skeleton` | Loading states |
 | `separator` | Visual dividers |
-| `calendar`, `popover` | DatePicker for event |
+| `calendar`, `popover` | DatePicker for event + per-row member picker in Admin BillForm |
 | `form` | RHF + Zod integration |
 | `progress` | Drink breakdown bar |
 | `alert` | Inline warnings |

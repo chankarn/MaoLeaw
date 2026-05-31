@@ -306,7 +306,6 @@ export default function EventDetailPage() {
         eventId={event.id}
         defaultName={mySubmission?.nameSnapshot ?? me?.customName ?? ''}
         defaultDrink={mySubmission?.drinkChoice ?? (me?.preferredDrink as DrinkChoice | undefined)}
-        defaultSharesMixer={mySubmission?.sharesMixer ?? false}
       />
     </main>
   );
@@ -419,37 +418,29 @@ function JoinDialog({
   eventId,
   defaultName,
   defaultDrink,
-  defaultSharesMixer,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   eventId: string;
   defaultName: string;
   defaultDrink: DrinkChoice | undefined;
-  defaultSharesMixer: boolean;
 }) {
   const { mutateAsync, isPending } = useSubmitAttendance(eventId);
   const [name, setName] = useState(defaultName);
   const [drink, setDrink] = useState<DrinkChoice | ''>(defaultDrink ?? '');
-  const [sharesMixer, setSharesMixer] = useState<boolean>(defaultSharesMixer);
 
   useEffect(() => {
     if (open) {
       setName(defaultName);
       setDrink(defaultDrink ?? '');
-      setSharesMixer(defaultSharesMixer);
     }
-  }, [open, defaultName, defaultDrink, defaultSharesMixer]);
+  }, [open, defaultName, defaultDrink]);
 
   const canSubmit = name.trim().length > 0 && drink !== '' && !isPending;
 
   async function handleSubmit() {
     try {
-      await mutateAsync({
-        nameSnapshot: name.trim(),
-        drinkChoice: drink as DrinkChoice,
-        sharesMixer: drink === 'NONE' ? sharesMixer : false,
-      });
+      await mutateAsync({ nameSnapshot: name.trim(), drinkChoice: drink as DrinkChoice });
       toast.success('บันทึกแล้ว');
       onOpenChange(false);
     } catch (err) {
@@ -498,22 +489,6 @@ function JoinDialog({
               ))}
             </RadioGroup>
           </div>
-          {drink === 'NONE' && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-3 transition-all has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
-              <input
-                type="checkbox"
-                checked={sharesMixer}
-                onChange={(e) => setSharesMixer(e.target.checked)}
-                className="mt-0.5 h-4 w-4 cursor-pointer accent-teal-500"
-              />
-              <div className="space-y-1">
-                <p className="text-sm font-medium">🧊 กินมิกเซอร์ด้วย</p>
-                <p className="text-xs text-muted-foreground">
-                  ร่วมหารค่าโซดา / น้ำแข็ง / น้ำผลไม้ (ยังไม่จ่ายค่าเหล้า/เบียร์)
-                </p>
-              </div>
-            </label>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

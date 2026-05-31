@@ -39,7 +39,6 @@ export interface AttendeeDto {
   name: string;
   pictureUrl: string | null;
   drinkChoice: DrinkChoice;
-  sharesMixer: boolean;
   memberType: MemberType;
   isMe: boolean;
 }
@@ -68,7 +67,6 @@ export interface EventDetailDto {
     id: string;
     nameSnapshot: string;
     drinkChoice: DrinkChoice;
-    sharesMixer: boolean;
     updatedAt: string;
   } | null;
 }

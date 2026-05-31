@@ -130,7 +130,6 @@ model Submission {
   memberId     String      @db.Uuid
   nameSnapshot String
   drinkChoice  DrinkChoice
-  sharesMixer  Boolean     @default(false)
   createdAt    DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime    @updatedAt @db.Timestamptz(6)
 
@@ -164,12 +163,13 @@ model Bill {
 }
 
 model BillItem {
-  id        String       @id @default(uuid()) @db.Uuid
-  billId    String       @db.Uuid
-  name      String
-  price     Int
-  itemType  BillItemType
-  sortOrder Int          @default(0)
+  id             String       @id @default(uuid()) @db.Uuid
+  billId         String       @db.Uuid
+  name           String
+  price          Int
+  itemType       BillItemType
+  extraMemberIds String[]     @default([]) @db.Uuid
+  sortOrder      Int          @default(0)
 
   bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
 

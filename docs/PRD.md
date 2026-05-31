@@ -125,10 +125,10 @@ Bottom Tab: Main | My Events | Profile
     • ชื่อ (default = member.displayName, แก้ไขได้)
     • เครื่องดื่มที่จะกิน (radio: เหล้า / เบียร์ / ไม่กินแอล)
       └─ default = member.preferredDrink
-    • ☐ กินมิกเซอร์ด้วย (checkbox, แสดงเฉพาะเมื่อเลือก 'ไม่กินแอล')
-      └─ default = false
-      └─ ติ๊กแล้ว → ร่วมหารค่ามิกเซอร์ (โซดา/น้ำแข็ง/น้ำผลไม้) แต่ยังไม่จ่ายค่าเหล้า/เบียร์
     • [Submit] (disabled จนกว่าทุก field จะกรอกครบ)
+
+  Note: การร่วมหารค่ามิกเซอร์ (หรือเหล้า/เบียร์ข้ามประเภท) — admin เป็นคน
+  pick รายคนตอนสร้างบิล ไม่ใช่ user เลือกตอน submit
 
   Submit → POST /events/:id/submissions → toast "บันทึกแล้ว" + ปิด dialog + refresh stats
 ```
@@ -145,7 +145,7 @@ Bottom Tab: Main | My Events | Profile
   • Breakdown:
       - ค่าอาหาร/หารทุกคน: ฿XX
       - ค่าเครื่องดื่ม (เหล้า/เบียร์): ฿XX
-      - ค่ามิกเซอร์: ฿XX (แสดงเฉพาะคนที่ร่วมหาร)
+      - ค่ามิกเซอร์: ฿XX (แสดงเฉพาะคนที่ admin เพิ่มให้ร่วมหาร)
   • รูป QR PromptPay (generate dynamic with amount):
       - ถ้า event มี customQrUrl → แสดงรูป QR ที่ admin upload (ตาม Hybrid mode)
       - ถ้าไม่มี → generate QR จาก PROMPTPAY_ID + amount โดย promptpay-qr (client-side, ไม่กิน storage)
@@ -247,13 +247,20 @@ Form:
         - ชื่อ (text)
         - ราคา (number, ≥ 0)
         - ประเภท (dropdown: เหล้า / เบียร์ / มิกเซอร์ / หารทุกคน)
+        - ร่วมหาร: 👥 N คน [+ เพิ่มคน]
+            └─ จำนวนคนที่ร่วมหารจริง (default ตามประเภท + extras ที่ admin add)
+            └─ ปุ่ม [+ เพิ่มคน] → popover แสดงคนที่ยังไม่ได้อยู่ใน default
+               ของประเภทนั้น (มี checkbox ติ๊กเลือกเพิ่ม)
+            └─ admin add คนพิเศษได้ทุกประเภท (รวม SHARED — แม้ว่าจะไม่มี
+               effect เพราะ SHARED หารทุกคนอยู่แล้ว, UI hide ปุ่มสำหรับ SHARED)
         - [🗑]
   • Summary (auto-calc):
       Total: ฿XXX
-      Liquor items: ฿XX (หารคนเลือกเหล้า N คน → ฿YY/คน)
-      Beer items: ฿XX (หารคนเลือกเบียร์ M คน → ฿YY/คน)
-      Mixer items: ฿XX (หารคนกินเหล้า + คนไม่กินแอลที่ติ๊ก 'กินมิกเซอร์ด้วย' = P คน → ฿YY/คน)
+      Liquor items: ฿XX (หาร eligible_i คน → ฿YY/คน)
+      Beer items: ฿XX (หาร eligible_i คน → ฿YY/คน)
+      Mixer items: ฿XX (หาร eligible_i คน → ฿YY/คน)
       Shared items: ฿XX (หารทุกคน K คน → ฿YY/คน)
+      *eligible_i คือคน default ตามประเภท ∪ extraMemberIds ของ item นั้น
   • Preview ตารางคิดเงินรายคน
   • [Save Draft] [Save & Send]
 ```
@@ -277,31 +284,25 @@ Actions: [👁 View] (ดู events ที่เข้าร่วม) | [🚫 B
   attendees = list ของ submission ใน event E (after closed)
 
   สำหรับแต่ละ item i ใน bill:
+    # เริ่มจาก default set ตามประเภท
     if i.type == 'shared':
-      eligibleCount = len(attendees)
-      perPerson_i = i.price / eligibleCount
-      → add perPerson_i to ทุกคน
-
+      base = attendees
     elif i.type == 'liquor':
-      eligible = attendees.filter(drink == 'liquor')
-      if len(eligible) == 0: skip (warning to admin)
-      perPerson_i = i.price / len(eligible)
-      → add perPerson_i ให้คนเหล่านั้น
-
+      base = attendees.filter(drink == 'liquor')
     elif i.type == 'beer':
-      eligible = attendees.filter(drink == 'beer')
-      if len(eligible) == 0: skip (warning to admin)
-      perPerson_i = i.price / len(eligible)
-      → add perPerson_i ให้คนเหล่านั้น
-
+      base = attendees.filter(drink == 'beer')
     elif i.type == 'mixer':
-      eligible = attendees.filter(drink in ['liquor', 'beer'] OR sharesMixer == true)
-      if len(eligible) == 0: skip (warning to admin)
-      perPerson_i = i.price / len(eligible)
-      → add perPerson_i ให้คนเหล่านั้น
+      base = attendees.filter(drink in ['liquor', 'beer'])  # คนกินอัลกอฮอล์ทั้งหมด
 
-  → คนที่เลือก 'ไม่กินแอล' จะ**ไม่ได้รับ**ค่าเหล้า/เบียร์เลย จ่ายเฉพาะ shared items
-    (+ mixer items เฉพาะกรณีที่ติ๊ก 'กินมิกเซอร์ด้วย' ตอน submit)
+    # union กับ extras ที่ admin add ผ่าน UI (รายคน รายรายการ)
+    eligible = base ∪ attendees.filter(id in i.extraMemberIds)
+
+    if len(eligible) == 0: skip (warning to admin)
+    perPerson_i = i.price / len(eligible)
+    → add perPerson_i ให้คนใน eligible
+
+  → คนที่เลือก 'ไม่กินแอล' จ่ายเฉพาะ shared items by default
+    (เว้นแต่ admin จะ add เข้ามาในรายการ liquor/beer/mixer เป็นรายตัว)
 
 ปัดเศษ: round up ทศนิยม → ส่วนต่างเป็น "tip" ที่ admin/เจ้าภาพรับไป
 ```
@@ -552,7 +553,7 @@ erDiagram
 | Auth (Admin) | JWT (Email/Password) | แยกจาก LINE ตาม user choice |
 | QR Payment | Hybrid: env-default + per-event override URL | ประหยัด storage + flexible |
 | LINE Profile | Cache `pictureUrl` + `displayName` in DB | offline-friendly, sync ทุก login |
-| Bill split (ไม่กินแอล) | จ่ายเฉพาะ shared items (+ mixer ถ้าติ๊ก flag `sharesMixer`) | Fair, ตรง intent + รองรับเคสกินโซดา/น้ำผลไม้ |
+| Bill split (ไม่กินแอล) | default = จ่ายเฉพาะ shared items; admin add เข้า liquor/beer/mixer items เป็นรายตัวได้ (`extraMemberIds[]` ต่อ item) | Fair-by-default + ยืดหยุ่นสำหรับ edge cases (เช่น คนไม่กินแอลแต่กินโซดา) — control อยู่ที่ admin ตอนสร้างบิล ไม่ต้องถาม user ตอน submit |
 | Notification | LINE Push (Messaging API) | Native UX, ฟรี 500/เดือน |
 | Edit submission | แก้ได้จนกว่า admin จะปิดบิล | Flexible |
 | Hosting | Vercel + Render + Supabase | ฟรี 100% (มี cold-start trade-off) |
