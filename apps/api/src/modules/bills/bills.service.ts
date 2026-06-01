@@ -204,7 +204,13 @@ export class BillsService {
   }
 
   async delete(billId: string) {
-    return prisma.bill.update({ where: { id: billId }, data: { deletedAt: new Date() } });
+    const bill = await prisma.bill.findUnique({ where: { id: billId } });
+    if (!bill) throw new NotFoundException('Bill not found');
+    if (bill.status === 'CLOSED') {
+      throw new ConflictException('Closed bills cannot be deleted');
+    }
+    // Hard delete — BillItem/BillShare cascade. Frees the eventId so a new bill can be created.
+    return prisma.bill.delete({ where: { id: billId } });
   }
 
   async calculatePreview(
