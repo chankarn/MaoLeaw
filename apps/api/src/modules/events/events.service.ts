@@ -135,7 +135,6 @@ export class EventsService {
         venue: input.venue,
         eventDate: new Date(input.eventDate),
         status: input.status ?? 'ACTIVE',
-        customPromptpayId: input.customPromptpayId ?? null,
         createdById: adminId,
       },
     });
@@ -149,9 +148,6 @@ export class EventsService {
         ...(input.venue !== undefined && { venue: input.venue }),
         ...(input.eventDate !== undefined && { eventDate: new Date(input.eventDate) }),
         ...(input.status !== undefined && { status: input.status }),
-        ...(input.customPromptpayId !== undefined && {
-          customPromptpayId: input.customPromptpayId ?? null,
-        }),
       },
     });
   }
@@ -168,7 +164,6 @@ export class EventsService {
       venue: ev.venue,
       eventDate: ev.eventDate.toISOString(),
       status: ev.status,
-      customPromptpayId: ev.customPromptpayId,
       attendeeCount: ev._count.submissions,
       createdAt: ev.createdAt.toISOString(),
     };

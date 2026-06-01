@@ -23,6 +23,11 @@ interface AdminBillDetail {
   name: string;
   status: 'DRAFT' | 'SENT' | 'CLOSED';
   totalAmount: number;
+  paymentType: 'PROMPTPAY' | 'BANK';
+  promptpayId: string | null;
+  bankCode: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
   event: { id: string; name: string; eventDate: string };
   items: Array<{
     id: string;

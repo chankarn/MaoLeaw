@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { calculateBill, type BillItemType, type DrinkChoice } from '@maoleaw/shared';
+import { BANK_OPTIONS, calculateBill, type BankCode, type BillItemType, type DrinkChoice, type PaymentType } from '@maoleaw/shared';
 import { useEventAttendees, useEventsForBill } from '@/hooks/use-events';
 import { useCreateBill, useUpdateBill } from '@/hooks/use-bills';
 import { cn, formatBaht } from '@/lib/utils';
@@ -50,6 +50,11 @@ export interface BillFormInitial {
   name: string;
   eventId: string;
   eventName: string;
+  paymentType: PaymentType;
+  promptpayId: string | null;
+  bankCode: BankCode | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
   items: Array<{
     name: string;
     price: number;
@@ -72,6 +77,11 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
 
   const [eventId, setEventId] = useState(initial?.eventId ?? presetEventId);
   const [billName, setBillName] = useState(initial?.name ?? '');
+  const [paymentType, setPaymentType] = useState<PaymentType>(initial?.paymentType ?? 'PROMPTPAY');
+  const [promptpayId, setPromptpayId] = useState(initial?.promptpayId ?? '');
+  const [bankCode, setBankCode] = useState<BankCode | ''>(initial?.bankCode ?? '');
+  const [bankAccountNumber, setBankAccountNumber] = useState(initial?.bankAccountNumber ?? '');
+  const [bankAccountName, setBankAccountName] = useState(initial?.bankAccountName ?? '');
   const [rows, setRows] = useState<RowState[]>(
     initial?.items.length
       ? initial.items.map((it) => ({
@@ -118,11 +128,17 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
     }
   }, [rows, attendees.data]);
 
+  const paymentValid =
+    paymentType === 'PROMPTPAY'
+      ? /^[0-9]{10,15}$/.test(promptpayId.trim())
+      : !!bankCode && !!bankAccountNumber.trim() && !!bankAccountName.trim();
+
   const canSubmit =
     !!eventId &&
     !!billName.trim() &&
     rows.every((r) => r.name.trim() && typeof r.price === 'number' && r.price >= 0) &&
     total > 0 &&
+    paymentValid &&
     !submitting;
 
   async function handleSave(send: boolean) {
@@ -134,10 +150,19 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
       extraMemberIds: r.extraMemberIds,
       sortOrder: idx,
     }));
+    const paymentFields =
+      paymentType === 'PROMPTPAY'
+        ? { paymentType: 'PROMPTPAY' as const, promptpayId: promptpayId.trim() }
+        : {
+            paymentType: 'BANK' as const,
+            bankCode: bankCode as BankCode,
+            bankAccountNumber: bankAccountNumber.trim(),
+            bankAccountName: bankAccountName.trim(),
+          };
 
     try {
       if (editing) {
-        await update.mutateAsync({ name: billName.trim(), items });
+        await update.mutateAsync({ name: billName.trim(), items, ...paymentFields });
         toast.success('อัปเดต bill แล้ว');
         if (send) {
           router.push(`/bills/${initial!.id}?action=send`);
@@ -145,7 +170,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
           router.push(`/bills/${initial!.id}`);
         }
       } else {
-        const bill = (await create.mutateAsync({ eventId, name: billName.trim(), items })) as {
+        const bill = (await create.mutateAsync({ eventId, name: billName.trim(), items, ...paymentFields })) as {
           id: string;
         };
         if (send) {
@@ -202,6 +227,90 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                 </Select>
               )}
             </div>
+          </div>
+
+          {/* ─── Payment section ─── */}
+          <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+            <h2 className="font-semibold">ช่องทางชำระเงิน</h2>
+            <div className="flex gap-3">
+              {(['PROMPTPAY', 'BANK'] as PaymentType[]).map((pt) => (
+                <label
+                  key={pt}
+                  className={cn(
+                    'flex flex-1 cursor-pointer items-center gap-2 rounded-md border p-3 text-sm transition-colors',
+                    paymentType === pt ? 'border-primary bg-primary/5 font-medium' : 'bg-card',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value={pt}
+                    checked={paymentType === pt}
+                    onChange={() => setPaymentType(pt)}
+                    className="accent-primary"
+                  />
+                  {pt === 'PROMPTPAY' ? '📱 PromptPay' : '🏦 โอนธนาคาร'}
+                </label>
+              ))}
+            </div>
+
+            {paymentType === 'PROMPTPAY' ? (
+              <div className="space-y-2">
+                <Label htmlFor="ppid">หมายเลข PromptPay</Label>
+                <Input
+                  id="ppid"
+                  type="tel"
+                  inputMode="numeric"
+                  className="font-mono"
+                  placeholder="เช่น 0812345678 หรือ 1234567890123"
+                  value={promptpayId}
+                  onChange={(e) => setPromptpayId(e.target.value.replace(/[^0-9]/g, '').slice(0, 15))}
+                  maxLength={15}
+                />
+                <p className="text-xs text-muted-foreground">เบอร์ 10 หลัก หรือบัตรประชาชน 13 หลัก</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>ธนาคาร</Label>
+                  <Select value={bankCode} onValueChange={(v) => setBankCode(v as BankCode)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="เลือกธนาคาร" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BANK_OPTIONS.map((b) => (
+                        <SelectItem key={b.value} value={b.value}>
+                          {b.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="acctNo">เลขบัญชี</Label>
+                  <Input
+                    id="acctNo"
+                    type="tel"
+                    inputMode="numeric"
+                    className="font-mono"
+                    placeholder="เช่น 1234567890"
+                    value={bankAccountNumber}
+                    onChange={(e) => setBankAccountNumber(e.target.value.replace(/[^0-9-]/g, '').slice(0, 30))}
+                    maxLength={30}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="acctName">ชื่อบัญชี</Label>
+                  <Input
+                    id="acctName"
+                    placeholder="เช่น นาย สมชาย ใจดี"
+                    value={bankAccountName}
+                    onChange={(e) => setBankAccountName(e.target.value.slice(0, 100))}
+                    maxLength={100}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

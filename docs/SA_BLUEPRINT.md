@@ -100,7 +100,6 @@ erDiagram
     string venue
     datetime eventDate
     EventStatus status "ACTIVE|INACTIVE"
-    string customQrUrl "nullable, per-event override"
     uuid createdBy FK
     datetime createdAt
     datetime updatedAt
@@ -123,12 +122,17 @@ erDiagram
     string name
     BillStatus status "DRAFT|SENT|CLOSED"
     int totalAmount "computed, baht"
+    PaymentType paymentType "PROMPTPAY|BANK; default PROMPTPAY"
+    string promptpayId "nullable; required when paymentType=PROMPTPAY"
+    BankCode bankCode "nullable; required when paymentType=BANK"
+    string bankAccountNumber "nullable; required when paymentType=BANK"
+    string bankAccountName "nullable; required when paymentType=BANK"
     uuid createdBy FK
     datetime sentAt "nullable"
     datetime closedAt "nullable"
     datetime createdAt
     datetime updatedAt
-    datetime deletedAt
+    datetime deletedAt "kept as column; hard delete is used in practice"
   }
 
   BillItem {
@@ -194,6 +198,8 @@ enum BillStatus      { DRAFT  SENT  CLOSED }
 enum BillItemType    { LIQUOR  BEER  MIXER  SHARED }
 enum PaymentStatus   { PENDING  PAID }
 enum PushDeliveryStatus { PENDING  SENT  FAILED }
+enum PaymentType     { PROMPTPAY  BANK }
+enum BankCode        { BBL  KBANK  KTB  SCB  BAY  TTB  GSB  BAAC  GHB  UOB  CIMB  LHB  TISCO  KKP }
 ```
 
 ### 2.2 `AdminUser`
@@ -237,7 +243,6 @@ enum PushDeliveryStatus { PENDING  SENT  FAILED }
 | venue | VARCHAR(200) | NOT NULL | |
 | eventDate | TIMESTAMPTZ | NOT NULL | when the party happens |
 | status | EventStatus | NOT NULL, default ACTIVE | |
-| customQrUrl | TEXT | NULLABLE | per-event QR override |
 | createdBy | UUID | FK → AdminUser.id, NOT NULL | |
 | createdAt | TIMESTAMPTZ | NOT NULL | |
 | updatedAt | TIMESTAMPTZ | NOT NULL | |
@@ -272,14 +277,23 @@ enum PushDeliveryStatus { PENDING  SENT  FAILED }
 | name | VARCHAR(100) | NOT NULL | |
 | status | BillStatus | NOT NULL, default DRAFT | |
 | totalAmount | INTEGER | NOT NULL, default 0 | sum of items, baht |
+| paymentType | PaymentType | NOT NULL, default PROMPTPAY | which payment channel applies to this bill |
+| promptpayId | VARCHAR(15) | NULLABLE | 10–15 digits; required (non-null) when paymentType=PROMPTPAY |
+| bankCode | BankCode | NULLABLE | required when paymentType=BANK |
+| bankAccountNumber | VARCHAR(30) | NULLABLE | required when paymentType=BANK |
+| bankAccountName | VARCHAR(100) | NULLABLE | required when paymentType=BANK |
 | createdBy | UUID | FK → AdminUser.id | |
 | sentAt | TIMESTAMPTZ | NULLABLE | when admin pressed Send |
 | closedAt | TIMESTAMPTZ | NULLABLE | when admin closed (locks edits) |
 | createdAt | TIMESTAMPTZ | NOT NULL | |
 | updatedAt | TIMESTAMPTZ | NOT NULL | |
-| deletedAt | TIMESTAMPTZ | NULLABLE | |
+| deletedAt | TIMESTAMPTZ | NULLABLE | column kept for backward compat; hard-delete is used in practice (CASCADE removes items/shares) |
 
 **Indexes:** unique on `eventId`, index on `status`
+
+**Validation (enforced at API layer):**
+- If `paymentType=PROMPTPAY` → `promptpayId` must be set (10–15 digits); bank fields must be null
+- If `paymentType=BANK` → `bankCode` + `bankAccountNumber` + `bankAccountName` must all be set; `promptpayId` must be null
 
 ### 2.7 `BillItem`
 
@@ -543,16 +557,34 @@ Get my bill share for this event.
     "paymentStatus": "PENDING",
     "paidAt": null
   },
-  "qrPayload": {
-    "type": "PROMPTPAY" | "CUSTOM_URL",
-    "value": "0812345678",
-    "amount": 450,
-    "customUrl": null
+  "payment": {
+    "type": "PROMPTPAY",        // or "BANK"
+    "amount": 480,
+    "promptpay": {              // present only when type=PROMPTPAY, else null
+      "id": "0812345678"
+    },
+    "bank": null                // present only when type=BANK (see below)
   }
 }
 ```
 
-> Client (LIFF) renders QR locally using `promptpay-qr` lib when type=PROMPTPAY; otherwise show `<img src={customUrl}/>`.
+When `payment.type === "BANK"`:
+```json
+"payment": {
+  "type": "BANK",
+  "amount": 480,
+  "promptpay": null,
+  "bank": {
+    "code": "KBANK",            // BankCode enum
+    "accountNumber": "1234567890",
+    "accountName": "สมชาย ใจดี"
+  }
+}
+```
+
+> Client (LIFF) branches on `payment.type`:
+> - PROMPTPAY → generate QR locally with `promptpay-qr` using `payment.promptpay.id` + `payment.amount`
+> - BANK → render bank info card (logo by `bank.code`, account number + name) with copy button
 
 ---
 
@@ -585,7 +617,7 @@ Clears cookie. Response 204.
 |---|---|---|
 | GET | `/v1/admin/events` | List with filters: `?status=ACTIVE&search=...&page=1&limit=20` |
 | GET | `/v1/admin/events/:id` | Detail incl. attendees |
-| POST | `/v1/admin/events` | Create — body: `{name, venue, eventDate, status}` |
+| POST | `/v1/admin/events` | Create — body: `{name, venue, eventDate, status}` (no payment fields — those live on Bill) |
 | PATCH | `/v1/admin/events/:id` | Partial update |
 | DELETE | `/v1/admin/events/:id` | Soft delete (sets `deletedAt`) |
 
@@ -602,7 +634,7 @@ Clears cookie. Response 204.
 | GET | `/v1/admin/bills/:id` | Detail incl. items + shares + push status |
 | POST | `/v1/admin/bills` | Create — body below |
 | PATCH | `/v1/admin/bills/:id` | Edit (only DRAFT) |
-| DELETE | `/v1/admin/bills/:id` | Soft delete |
+| DELETE | `/v1/admin/bills/:id` | Hard delete (CASCADE removes items/shares). Blocked for `CLOSED` bills (409). |
 | POST | `/v1/admin/bills/:id/calculate-preview` | Dry run — returns share breakdown w/o saving |
 | POST | `/v1/admin/bills/:id/send` | Send LINE push, transition DRAFT→SENT |
 | POST | `/v1/admin/bills/:id/close` | Lock submissions, transition SENT→CLOSED |
@@ -614,6 +646,11 @@ Clears cookie. Response 204.
 {
   "eventId": "uuid",
   "name": "งานรุ่น 35 - บิลร้านเฮง",
+  "paymentType": "PROMPTPAY",
+  "promptpayId": "0812345678",
+  "bankCode": null,
+  "bankAccountNumber": null,
+  "bankAccountName": null,
   "items": [
     { "name": "ข้าวเย็น", "price": 1200, "itemType": "SHARED", "extraMemberIds": [], "sortOrder": 0 },
     { "name": "เหล้าขาว 1 ขวด", "price": 350, "itemType": "LIQUOR", "extraMemberIds": [], "sortOrder": 1 },
@@ -623,7 +660,26 @@ Clears cookie. Response 204.
 }
 ```
 
+Or for bank:
+```json
+{
+  "eventId": "uuid",
+  "name": "งานรุ่น 35 - บิลร้านเฮง",
+  "paymentType": "BANK",
+  "promptpayId": null,
+  "bankCode": "KBANK",
+  "bankAccountNumber": "1234567890",
+  "bankAccountName": "สมชาย ใจดี",
+  "items": [ ... ]
+}
+```
+
 **Response 201:** Bill with computed shares.
+
+**Validation errors (400):**
+- `paymentType=PROMPTPAY` แต่ `promptpayId` ว่าง / ไม่ใช่ 10–15 หลัก
+- `paymentType=BANK` แต่ field ใด field หนึ่งใน {bankCode, bankAccountNumber, bankAccountName} ว่าง
+- ระบุ field ของอีก paymentType (เช่น `paymentType=PROMPTPAY` แต่ส่ง `bankCode`)
 
 ---
 

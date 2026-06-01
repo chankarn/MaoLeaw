@@ -18,7 +18,6 @@ export default function EditEventPage() {
         venue: data.venue,
         eventDate: data.eventDate,
         status: data.status,
-        customPromptpayId: data.customPromptpayId ?? null,
       }}
     />
   );

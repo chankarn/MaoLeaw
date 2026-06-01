@@ -15,6 +15,8 @@ export const memberTypeSchema = z.enum(['BD', 'TL', 'KU', 'SWU', 'CU', 'KMITL', 
 export const eventStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
 export const billStatusSchema = z.enum(['DRAFT', 'SENT', 'CLOSED']);
 export const billItemTypeSchema = z.enum(['LIQUOR', 'BEER', 'MIXER', 'SHARED']);
+export const paymentTypeSchema = z.enum(['PROMPTPAY', 'BANK']);
+export const bankCodeSchema = z.enum(['BBL', 'KBANK', 'KTB', 'SCB', 'BAY', 'TTB', 'GSB', 'BAAC', 'GHB', 'UOB', 'CIMB', 'LHB', 'TISCO', 'KKP']);
 
 export const registerMemberSchema = z.object({
   customName: z.string().trim().min(1, 'กรุณาใส่ชื่อ').max(MAX_CUSTOM_NAME_LENGTH),
@@ -54,7 +56,6 @@ export const createEventSchema = z.object({
   venue: z.string().trim().min(1).max(MAX_VENUE_LENGTH),
   eventDate: z.string().datetime({ offset: true }),
   status: eventStatusSchema.default('ACTIVE'),
-  customPromptpayId: promptpayIdSchema.nullable().optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
@@ -69,16 +70,40 @@ export const billItemInputSchema = z.object({
   sortOrder: z.number().int().nonnegative().default(0),
 });
 
-export const createBillSchema = z.object({
-  eventId: z.string().uuid(),
-  name: z.string().trim().min(1).max(MAX_BILL_NAME_LENGTH),
-  items: z.array(billItemInputSchema).min(1, 'ต้องมีอย่างน้อย 1 รายการ'),
-});
+const billPaymentSchema = z.discriminatedUnion('paymentType', [
+  z.object({
+    paymentType: z.literal('PROMPTPAY'),
+    promptpayId: promptpayIdSchema,
+    bankCode: z.undefined().optional(),
+    bankAccountNumber: z.undefined().optional(),
+    bankAccountName: z.undefined().optional(),
+  }),
+  z.object({
+    paymentType: z.literal('BANK'),
+    promptpayId: z.undefined().optional(),
+    bankCode: bankCodeSchema,
+    bankAccountNumber: z.string().trim().min(1).max(30),
+    bankAccountName: z.string().trim().min(1).max(100),
+  }),
+]);
+
+export const createBillSchema = z
+  .object({
+    eventId: z.string().uuid(),
+    name: z.string().trim().min(1).max(MAX_BILL_NAME_LENGTH),
+    items: z.array(billItemInputSchema).min(1, 'ต้องมีอย่างน้อย 1 รายการ'),
+  })
+  .and(billPaymentSchema);
 export type CreateBillInput = z.infer<typeof createBillSchema>;
 
 export const updateBillSchema = z.object({
   name: z.string().trim().min(1).max(MAX_BILL_NAME_LENGTH).optional(),
   items: z.array(billItemInputSchema).min(1).optional(),
+  paymentType: paymentTypeSchema.optional(),
+  promptpayId: promptpayIdSchema.optional(),
+  bankCode: bankCodeSchema.optional(),
+  bankAccountNumber: z.string().trim().min(1).max(30).optional(),
+  bankAccountName: z.string().trim().min(1).max(100).optional(),
 });
 export type UpdateBillInput = z.infer<typeof updateBillSchema>;
 

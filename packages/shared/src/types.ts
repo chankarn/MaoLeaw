@@ -9,6 +9,8 @@ export type BillStatus = 'DRAFT' | 'SENT' | 'CLOSED';
 export type BillItemType = 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED';
 export type PaymentStatus = 'PENDING' | 'CLAIMED' | 'PAID';
 export type PushDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED';
+export type PaymentType = 'PROMPTPAY' | 'BANK';
+export type BankCode = 'BBL' | 'KBANK' | 'KTB' | 'SCB' | 'BAY' | 'TTB' | 'GSB' | 'BAAC' | 'GHB' | 'UOB' | 'CIMB' | 'LHB' | 'TISCO' | 'KKP';
 export type AdminRole = 'ADMIN';
 export type AuthRole = 'MEMBER' | AdminRole;
 
@@ -83,12 +85,19 @@ export interface MyBillDto {
     claimedAt: string | null;
     claimNote: string | null;
   };
-  qrPayload: {
-    type: 'PROMPTPAY' | 'CUSTOM_URL';
-    value: string;
-    amount: number;
-    customUrl: string | null;
-  };
+  payment:
+    | {
+        type: 'PROMPTPAY';
+        amount: number;
+        promptpay: { id: string };
+        bank: null;
+      }
+    | {
+        type: 'BANK';
+        amount: number;
+        promptpay: null;
+        bank: { code: BankCode; accountNumber: string; accountName: string };
+      };
 }
 
 export interface AuthTokenDto {

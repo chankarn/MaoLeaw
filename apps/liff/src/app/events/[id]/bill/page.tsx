@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { ErrorState } from '@/components/error-state';
 import { useClaimPaid, useMyBill } from '@/hooks/use-bill';
+import { BANK_OPTIONS, type MyBillDto } from '@maoleaw/shared';
 import { ApiError } from '@/lib/api';
 import { cn, formatBaht } from '@/lib/utils';
 
@@ -25,10 +26,9 @@ export default function MyBillPage() {
 
   useEffect(() => {
     if (!data || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    if (data.qrPayload.type === 'PROMPTPAY') {
-      const payload = generatePayload(data.qrPayload.value, { amount: data.qrPayload.amount });
-      QRCode.toCanvas(canvas, payload, { width: 240, margin: 1, color: { dark: '#1c1917' } }).catch(
+    if (data.payment.type === 'PROMPTPAY') {
+      const payload = generatePayload(data.payment.promptpay!.id, { amount: data.payment.amount });
+      QRCode.toCanvas(canvasRef.current, payload, { width: 240, margin: 1, color: { dark: '#1c1917' } }).catch(
         (err) => console.error('QR render failed', err),
       );
     }
@@ -41,7 +41,7 @@ export default function MyBillPage() {
     return <ErrorState onRetry={refetch} />;
   }
 
-  const { bill, myShare, qrPayload } = data;
+  const { bill, myShare, payment } = data;
   const isPaid = myShare.paymentStatus === 'PAID';
   const isClaimed = myShare.paymentStatus === 'CLAIMED';
 
@@ -66,8 +66,8 @@ export default function MyBillPage() {
     a.click();
   }
 
-  async function copyPromptPay() {
-    await navigator.clipboard.writeText(qrPayload.value);
+  async function copyText(text: string) {
+    await navigator.clipboard.writeText(text);
     toast.success('คัดลอกแล้ว');
   }
 
@@ -195,74 +195,71 @@ export default function MyBillPage() {
         </div>
       </section>
 
-      {/* ─── QR section ─── */}
+      {/* ─── Payment section ─── */}
       <section className="px-4 pt-5">
-        <div className="rounded-3xl bg-white p-6 shadow-md">
-          <h2 className="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            สแกน QR เพื่อจ่าย
-          </h2>
+        {payment.type === 'PROMPTPAY' ? (
+          <div className="rounded-3xl bg-white p-6 shadow-md">
+            <h2 className="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              สแกน QR เพื่อจ่าย
+            </h2>
 
-          {/* QR with corner brackets */}
-          <div className="relative mx-auto h-64 w-64">
-            {/* Corner brackets */}
-            <CornerBracket position="tl" />
-            <CornerBracket position="tr" />
-            <CornerBracket position="bl" />
-            <CornerBracket position="br" />
-
-            <div className="absolute inset-3 flex items-center justify-center rounded-xl bg-white">
-              {qrPayload.type === 'PROMPTPAY' ? (
+            {/* QR with corner brackets */}
+            <div className="relative mx-auto h-64 w-64">
+              <CornerBracket position="tl" />
+              <CornerBracket position="tr" />
+              <CornerBracket position="bl" />
+              <CornerBracket position="br" />
+              <div className="absolute inset-3 flex items-center justify-center rounded-xl bg-white">
                 <canvas ref={canvasRef} className="h-full w-full" />
-              ) : qrPayload.customUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={qrPayload.customUrl} alt="QR" className="h-full w-full object-contain" />
-              ) : null}
+              </div>
             </div>
-          </div>
 
-          {/* PromptPay ID + copy */}
-          <div className="mt-5 flex items-center justify-between rounded-xl bg-amber-50 px-4 py-2.5">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-amber-700">PromptPay</p>
-              <p className="font-mono text-sm font-semibold text-stone-900">{qrPayload.value}</p>
+            {/* PromptPay ID + copy */}
+            <div className="mt-5 flex items-center justify-between rounded-xl bg-amber-50 px-4 py-2.5">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-amber-700">PromptPay</p>
+                <p className="font-mono text-sm font-semibold text-stone-900">{payment.promptpay!.id}</p>
+              </div>
+              <button
+                onClick={() => copyText(payment.promptpay!.id)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-stone-600 hover:text-primary"
+                aria-label="คัดลอก"
+              >
+                <Copy className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              onClick={copyPromptPay}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-stone-600 hover:text-primary"
-              aria-label="คัดลอก"
-            >
-              <Copy className="h-4 w-4" />
-            </button>
-          </div>
 
-          {/* Actions */}
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={downloadQr}>
-              <Download className="mr-2 h-4 w-4" />
-              บันทึก QR
-            </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                if (navigator.share) {
-                  try {
-                    await navigator.share({
-                      title: bill.name,
-                      text: `ยอด ${formatBaht(myShare.amount)} โอนผ่าน PromptPay ${qrPayload.value}`,
-                    });
-                  } catch {
-                    /* user cancelled */
+            {/* Actions */}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={downloadQr}>
+                <Download className="mr-2 h-4 w-4" />
+                บันทึก QR
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (navigator.share) {
+                    try {
+                      await navigator.share({
+                        title: bill.name,
+                        text: `ยอด ${formatBaht(myShare.amount)} โอนผ่าน PromptPay ${payment.promptpay!.id}`,
+                      });
+                    } catch {
+                      /* user cancelled */
+                    }
+                  } else {
+                    copyText(payment.promptpay!.id);
                   }
-                } else {
-                  copyPromptPay();
-                }
-              }}
-            >
-              <Share2 className="mr-2 h-4 w-4" />
-              แชร์
-            </Button>
+                }}
+              >
+                <Share2 className="mr-2 h-4 w-4" />
+                แชร์
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <BankCard payment={payment} onCopy={copyText} />
+        )}
       </section>
 
       {/* ─── Sticky CTA (raised) ─── */}
@@ -354,6 +351,63 @@ function CornerBracket({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) {
     br: 'bottom-0 right-0 border-r-[3px] border-b-[3px] rounded-br-xl',
   };
   return <div className={cn(base, map[position])} />;
+}
+
+function BankCard({
+  payment,
+  onCopy,
+}: {
+  payment: Extract<MyBillDto['payment'], { type: 'BANK' }>;
+  onCopy: (text: string) => void;
+}) {
+  const bank = BANK_OPTIONS.find((b) => b.value === payment.bank.code);
+  return (
+    <div className="rounded-3xl bg-white p-6 shadow-md">
+      <h2 className="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        โอนเงินผ่านธนาคาร
+      </h2>
+
+      <div className="rounded-2xl border-2 border-stone-100 p-5 text-center">
+        <div
+          className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-bold text-white shadow"
+          style={{ backgroundColor: bank?.color ?? '#78716c' }}
+        >
+          🏦
+        </div>
+        <p className="font-semibold text-stone-800">{bank?.label ?? payment.bank.code}</p>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <div className="flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500">เลขบัญชี</p>
+            <p className="font-mono text-base font-semibold text-stone-900">{payment.bank.accountNumber}</p>
+          </div>
+          <button
+            onClick={() => onCopy(payment.bank.accountNumber)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-stone-600 hover:text-primary"
+            aria-label="คัดลอกเลขบัญชี"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500">ชื่อบัญชี</p>
+            <p className="text-sm font-semibold text-stone-900">{payment.bank.accountName}</p>
+          </div>
+          <button
+            onClick={() => onCopy(payment.bank.accountName)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-stone-600 hover:text-primary"
+            aria-label="คัดลอกชื่อบัญชี"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BillSkeleton() {

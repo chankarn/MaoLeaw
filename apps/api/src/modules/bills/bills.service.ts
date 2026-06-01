@@ -5,6 +5,7 @@ import { prisma } from '@maoleaw/db';
 import {
   calculateBill,
   sumItemPrices,
+  type BankCode,
   type CalcAttendee,
   type CreateBillInput,
   type MyBillDto,
@@ -117,6 +118,11 @@ export class BillsService {
           name: input.name,
           status: 'DRAFT',
           totalAmount: total,
+          paymentType: input.paymentType,
+          promptpayId: input.paymentType === 'PROMPTPAY' ? input.promptpayId : null,
+          bankCode: input.paymentType === 'BANK' ? (input.bankCode as BankCode) : null,
+          bankAccountNumber: input.paymentType === 'BANK' ? input.bankAccountNumber : null,
+          bankAccountName: input.paymentType === 'BANK' ? input.bankAccountName : null,
           createdById: adminId,
           items: {
             create: input.items.map((it, idx) => ({
@@ -152,8 +158,25 @@ export class BillsService {
     if (bill.status !== 'DRAFT') throw new ConflictException('Only DRAFT bills can be edited');
 
     return prisma.$transaction(async (tx) => {
-      if (input.name !== undefined) {
-        await tx.bill.update({ where: { id: billId }, data: { name: input.name } });
+      // Update scalar fields (name + payment) if provided
+      const scalarPatch: Record<string, unknown> = {};
+      if (input.name !== undefined) scalarPatch.name = input.name;
+      if (input.paymentType !== undefined) {
+        scalarPatch.paymentType = input.paymentType;
+        if (input.paymentType === 'PROMPTPAY') {
+          scalarPatch.promptpayId = input.promptpayId ?? null;
+          scalarPatch.bankCode = null;
+          scalarPatch.bankAccountNumber = null;
+          scalarPatch.bankAccountName = null;
+        } else {
+          scalarPatch.promptpayId = null;
+          scalarPatch.bankCode = input.bankCode ?? null;
+          scalarPatch.bankAccountNumber = input.bankAccountNumber ?? null;
+          scalarPatch.bankAccountName = input.bankAccountName ?? null;
+        }
+      }
+      if (Object.keys(scalarPatch).length > 0) {
+        await tx.bill.update({ where: { id: billId }, data: scalarPatch });
       }
       if (input.items) {
         const attendeeIds = new Set(bill.event.submissions.map((s) => s.memberId));
@@ -349,7 +372,6 @@ export class BillsService {
   async getMyBillForEvent(eventId: string, memberId: string): Promise<MyBillDto> {
     const bill = await prisma.bill.findFirst({
       where: { eventId, deletedAt: null },
-      include: { event: { select: { customPromptpayId: true } } },
     });
     if (!bill) throw new NotFoundException('No bill for this event');
 
@@ -358,11 +380,26 @@ export class BillsService {
     });
     if (!share) throw new NotFoundException('You are not part of this bill');
 
-    const appConfig = await prisma.appConfig.findUnique({ where: { id: 'singleton' } });
-    const promptPayId =
-      bill.event.customPromptpayId ??
-      appConfig?.promptpayIdOverride ??
-      this.cfg.getOrThrow<string>('PROMPTPAY_ID');
+    const payment: MyBillDto['payment'] =
+      bill.paymentType === 'BANK'
+        ? {
+            type: 'BANK',
+            amount: share.amount,
+            promptpay: null,
+            bank: {
+              code: bill.bankCode as BankCode,
+              accountNumber: bill.bankAccountNumber!,
+              accountName: bill.bankAccountName!,
+            },
+          }
+        : {
+            type: 'PROMPTPAY',
+            amount: share.amount,
+            promptpay: {
+              id: bill.promptpayId ?? this.cfg.getOrThrow<string>('PROMPTPAY_ID'),
+            },
+            bank: null,
+          };
 
     return {
       bill: { id: bill.id, name: bill.name, status: bill.status, totalAmount: bill.totalAmount },
@@ -376,7 +413,7 @@ export class BillsService {
         claimedAt: share.claimedAt?.toISOString() ?? null,
         claimNote: share.claimNote,
       },
-      qrPayload: { type: 'PROMPTPAY', value: promptPayId, amount: share.amount, customUrl: null },
+      payment,
     };
   }
 

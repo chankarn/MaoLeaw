@@ -12,7 +12,6 @@ interface AdminEventRow {
   status: 'ACTIVE' | 'INACTIVE';
   attendeeCount: number;
   hasBill: boolean;
-  customPromptpayId?: string | null;
 }
 
 interface ListResponse<T> {

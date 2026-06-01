@@ -28,6 +28,11 @@ export default function EditBillPage() {
         name: data.name,
         eventId: data.event.id,
         eventName: data.event.name,
+        paymentType: data.paymentType,
+        promptpayId: data.promptpayId,
+        bankCode: data.bankCode as import('@maoleaw/shared').BankCode | null,
+        bankAccountNumber: data.bankAccountNumber,
+        bankAccountName: data.bankAccountName,
         items: data.items.map((it) => ({
           name: it.name,
           price: it.price,

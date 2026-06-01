@@ -12,7 +12,6 @@ export interface AdminProfile {
 }
 
 export interface AppConfig {
-  promptpayIdOverride: string | null;
   memberTypeLabels: Record<string, string>;
   updatedAt: string;
 }
@@ -56,10 +55,7 @@ export function useAppConfig() {
 export function useUpdateAppConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      promptpayIdOverride?: string | null;
-      memberTypeLabels?: Record<string, string> | null;
-    }) =>
+    mutationFn: (input: { memberTypeLabels?: Record<string, string> | null }) =>
       apiFetch<AppConfig>('/admin/settings/config', {
         method: 'PATCH',
         body: JSON.stringify(input),

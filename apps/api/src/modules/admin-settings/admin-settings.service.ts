@@ -51,34 +51,25 @@ export class AdminSettingsService {
       create: { id: SINGLETON_ID },
     });
     return {
-      promptpayIdOverride: cfg.promptpayIdOverride,
       memberTypeLabels: (cfg.memberTypeLabels as Record<string, string> | null) ?? {},
       updatedAt: cfg.updatedAt.toISOString(),
     };
   }
 
-  async updateConfig(input: {
-    promptpayIdOverride?: string | null;
-    memberTypeLabels?: Record<string, string> | null;
-  }) {
+  async updateConfig(input: { memberTypeLabels?: Record<string, string> | null }) {
     const cfg = await prisma.appConfig.upsert({
       where: { id: SINGLETON_ID },
       update: {
-        ...(input.promptpayIdOverride !== undefined && {
-          promptpayIdOverride: input.promptpayIdOverride,
-        }),
         ...(input.memberTypeLabels !== undefined && {
           memberTypeLabels: input.memberTypeLabels ?? undefined,
         }),
       },
       create: {
         id: SINGLETON_ID,
-        promptpayIdOverride: input.promptpayIdOverride ?? null,
         memberTypeLabels: input.memberTypeLabels ?? undefined,
       },
     });
     return {
-      promptpayIdOverride: cfg.promptpayIdOverride,
       memberTypeLabels: (cfg.memberTypeLabels as Record<string, string> | null) ?? {},
       updatedAt: cfg.updatedAt.toISOString(),
     };

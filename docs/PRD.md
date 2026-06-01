@@ -146,10 +146,13 @@ Bottom Tab: Main | My Events | Profile
       - ค่าอาหาร/หารทุกคน: ฿XX
       - ค่าเครื่องดื่ม (เหล้า/เบียร์): ฿XX
       - ค่ามิกเซอร์: ฿XX (แสดงเฉพาะคนที่ admin เพิ่มให้ร่วมหาร)
-  • รูป QR PromptPay (generate dynamic with amount):
-      - ถ้า event มี customQrUrl → แสดงรูป QR ที่ admin upload (ตาม Hybrid mode)
-      - ถ้าไม่มี → generate QR จาก PROMPTPAY_ID + amount โดย promptpay-qr (client-side, ไม่กิน storage)
-  • ปุ่ม "บันทึกรูป" (download QR)
+  • ช่องทางการรับเงิน (ขึ้นกับ bill.paymentType ที่ admin ตั้งไว้):
+      ─ PROMPTPAY:
+          - generate QR จาก bill.promptpayId + amount ผ่าน promptpay-qr (client-side, ไม่กิน storage)
+          - ปุ่ม "บันทึกรูป" (download QR PNG)
+      ─ BANK:
+          - แสดงข้อมูลบัญชี: logo + ชื่อธนาคาร, เลขบัญชี, ชื่อบัญชี, ยอดที่ต้องจ่าย
+          - ปุ่ม "คัดลอกเลขบัญชี" (copy to clipboard)
   • Status: [⏳ รอชำระ] หรือ [✅ ชำระแล้ว]
 ```
 
@@ -232,7 +235,7 @@ Actions:
   [✏️ Edit]  (อนุญาตเฉพาะ Draft)
   [📨 Send to Members] → trigger LINE Push (เปลี่ยน status → Sent)
   [🔒 Close]  → lock submissions (เปลี่ยน status → Closed)
-  [🗑 Delete] (soft delete)
+  [🗑 Delete] (hard delete, allowed only for DRAFT/SENT — CLOSED is locked)
 
 Top: [+ Create Bill]
 ```
@@ -261,6 +264,15 @@ Form:
       Mixer items: ฿XX (หาร eligible_i คน → ฿YY/คน)
       Shared items: ฿XX (หารทุกคน K คน → ฿YY/คน)
       *eligible_i คือคน default ตามประเภท ∪ extraMemberIds ของ item นั้น
+  • ช่องทางการรับเงิน (required):
+      Radio: [● PromptPay  ○ ธนาคาร]
+      ─ PromptPay:
+          - PromptPay ID (text, 10–15 digits, default จาก env PROMPTPAY_ID)
+      ─ ธนาคาร:
+          - ธนาคาร (dropdown: 13 ธนาคารหลัก — กรุงเทพ / กสิกร / กรุงไทย / SCB /
+            กรุงศรี / TTB / ออมสิน / ธ.ก.ส. / ธอส. / UOB / CIMB / LH / TISCO / KKP)
+          - เลขบัญชี (text, required)
+          - ชื่อบัญชี (text, required)
   • Preview ตารางคิดเงินรายคน
   • [Save Draft] [Save & Send]
 ```
@@ -367,7 +379,6 @@ erDiagram
     string venue
     datetime eventDate
     enum status "active|inactive"
-    string customQrUrl "nullable"
     datetime createdAt
     datetime deletedAt "nullable"
   }
@@ -388,6 +399,11 @@ erDiagram
     string name
     enum status "draft|sent|closed"
     int   total
+    enum paymentType "promptpay|bank"
+    string promptpayId "nullable"
+    enum bankCode "nullable"
+    string bankAccountNumber "nullable"
+    string bankAccountName "nullable"
     datetime sentAt
     datetime closedAt
   }
@@ -551,7 +567,7 @@ erDiagram
 | ORM | Prisma | type-safe, migration ดี, รองรับ Supabase |
 | Auth (LIFF) | LINE Login (idToken verify) | Native ของ LIFF |
 | Auth (Admin) | JWT (Email/Password) | แยกจาก LINE ตาม user choice |
-| QR Payment | Hybrid: env-default + per-event override URL | ประหยัด storage + flexible |
+| Payment channel | Per-bill: PROMPTPAY (QR generate client-side) หรือ BANK (logo + account info card). PromptPay default จาก env PROMPTPAY_ID, ปรับได้ต่อบิล | ยืดหยุ่นต่อ host (เจ้าภาพต่างคนต่างบัญชีก็ได้), ไม่กิน storage (no QR upload), รองรับ user ที่ไม่ใช้ PromptPay |
 | LINE Profile | Cache `pictureUrl` + `displayName` in DB | offline-friendly, sync ทุก login |
 | Bill split (ไม่กินแอล) | default = จ่ายเฉพาะ shared items; admin add เข้า liquor/beer/mixer items เป็นรายตัวได้ (`extraMemberIds[]` ต่อ item) | Fair-by-default + ยืดหยุ่นสำหรับ edge cases (เช่น คนไม่กินแอลแต่กินโซดา) — control อยู่ที่ admin ตอนสร้างบิล ไม่ต้องถาม user ตอน submit |
 | Notification | LINE Push (Messaging API) | Native UX, ฟรี 500/เดือน |

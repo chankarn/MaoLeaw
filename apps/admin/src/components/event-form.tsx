@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, MapPin, QrCode, Tag, Type } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Tag, Type } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,6 @@ export interface EventFormInitial {
   venue: string;
   eventDate: string;
   status: EventStatus;
-  customPromptpayId: string | null;
 }
 
 export function EventForm({ initial }: { initial?: EventFormInitial }) {
@@ -31,7 +30,6 @@ export function EventForm({ initial }: { initial?: EventFormInitial }) {
   const [venue, setVenue] = useState(initial?.venue ?? '');
   const [eventDate, setEventDate] = useState(toDatetimeLocal(initial?.eventDate));
   const [status, setStatus] = useState<EventStatus>(initial?.status ?? 'ACTIVE');
-  const [customPromptpayId, setCustomPromptpayId] = useState(initial?.customPromptpayId ?? '');
 
   const editing = !!initial?.id;
   const submitting = create.isPending || update.isPending;
@@ -44,7 +42,6 @@ export function EventForm({ initial }: { initial?: EventFormInitial }) {
       venue: venue.trim(),
       eventDate: fromDatetimeLocal(eventDate),
       status,
-      customPromptpayId: customPromptpayId.trim() ? customPromptpayId.trim() : null,
     };
     try {
       if (editing) {
@@ -154,38 +151,6 @@ export function EventForm({ initial }: { initial?: EventFormInitial }) {
               </div>
             </div>
 
-            <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wider text-stone-400">
-              การชำระเงิน
-            </h2>
-
-            <Field
-              icon={<QrCode className="h-4 w-4" />}
-              label="PromptPay สำหรับรับเงินงานนี้"
-              htmlFor="ppid"
-              optional
-            >
-              <div className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-stone-400">
-                  📱
-                </span>
-                <Input
-                  id="ppid"
-                  type="tel"
-                  inputMode="numeric"
-                  className="pl-10 font-mono"
-                  placeholder="เช่น 0812345678 หรือ 1234567890123"
-                  value={customPromptpayId}
-                  onChange={(e) =>
-                    setCustomPromptpayId(e.target.value.replace(/[^0-9]/g, '').slice(0, 15))
-                  }
-                  maxLength={15}
-                />
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                เบอร์โทร 10 หลัก หรือเลขประจำตัวประชาชน 13 หลัก · ถ้าไม่ใส่ระบบจะใช้ default จาก env
-              </p>
-            </Field>
-
             <div className="mt-8 flex justify-end gap-2 border-t pt-5">
               <Button type="button" variant="outline" onClick={() => router.back()}>
                 ยกเลิก
@@ -245,7 +210,7 @@ export function EventForm({ initial }: { initial?: EventFormInitial }) {
               <p className="mb-1 font-semibold">💡 Tip</p>
               <ul className="space-y-1 text-[11px] leading-relaxed text-amber-800">
                 <li>• ตั้ง status = <b>Inactive</b> ถ้ายังไม่ต้องการให้สมาชิกเห็น</li>
-                <li>• ใส่ PromptPay ของคนเก็บเงิน — ระบบจะ generate QR แบบ dynamic</li>
+                <li>• ช่องทางชำระเงินตั้งได้ตอนสร้าง Bill</li>
                 <li>• แก้ไขได้ตลอดเวลา ก่อน Bill จะปิด</li>
               </ul>
             </Card>

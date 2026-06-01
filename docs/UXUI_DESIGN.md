@@ -650,20 +650,22 @@ function EventDetailSkeleton() {
 }
 ```
 
-### 4.4 Event Detail (Post-event) — Bill View with QR
+### 4.4 Event Detail (Post-event) — Bill View (PromptPay or Bank)
 
 ```tsx
 // apps/liff/src/app/(main)/events/[id]/bill/page.tsx
 'use client';
 
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { useMyBill } from '@/hooks/use-bill';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Copy, Download } from 'lucide-react';
 import generatePayload from 'promptpay-qr';
 import QRCode from 'qrcode.react';
+import { BANK_LABELS } from '@maoleaw/shared';
 
 export default function MyBillPage() {
   const { id } = useParams<{ id: string }>();
@@ -671,12 +673,7 @@ export default function MyBillPage() {
 
   if (isLoading || !data) return <BillSkeleton/>;
 
-  const { bill, myShare, qrPayload } = data;
-
-  const isPromptPay = qrPayload.type === 'PROMPTPAY';
-  const payload = isPromptPay
-    ? generatePayload(qrPayload.value, { amount: qrPayload.amount / 1 })
-    : null;
+  const { bill, myShare, payment } = data;
 
   return (
     <main className="mx-auto max-w-[480px] px-4 py-4">
@@ -701,22 +698,12 @@ export default function MyBillPage() {
         </div>
       </Card>
 
-      <Card className="mb-4 p-6">
-        <h2 className="mb-4 text-center font-semibold">สแกนเพื่อจ่าย</h2>
-        <div className="mx-auto flex h-64 w-64 items-center justify-center rounded-lg bg-white p-4 shadow-sm">
-          {isPromptPay && payload ? (
-            <QRCode value={payload} size={224}/>
-          ) : qrPayload.customUrl ? (
-            <img src={qrPayload.customUrl} alt="QR" className="h-full w-full object-contain"/>
-          ) : null}
-        </div>
-        <p className="mt-3 text-center text-sm text-muted-foreground">
-          PromptPay: <span className="font-mono">{qrPayload.value}</span>
-        </p>
-        <Button variant="outline" className="mt-4 w-full" onClick={() => downloadQr()}>
-          <Download className="mr-2 h-4 w-4"/>บันทึกรูป QR
-        </Button>
-      </Card>
+      {payment.type === 'PROMPTPAY' && payment.promptpay && (
+        <PromptPayCard id={payment.promptpay.id} amount={payment.amount}/>
+      )}
+      {payment.type === 'BANK' && payment.bank && (
+        <BankCard bank={payment.bank} amount={payment.amount}/>
+      )}
 
       {myShare.paymentStatus !== 'PAID' && (
         <Button size="lg" className="w-full" variant="default">
@@ -724,6 +711,63 @@ export default function MyBillPage() {
         </Button>
       )}
     </main>
+  );
+}
+
+function PromptPayCard({ id, amount }: { id: string; amount: number }) {
+  const payload = generatePayload(id, { amount });
+  return (
+    <Card className="mb-4 p-6">
+      <h2 className="mb-4 text-center font-semibold">สแกนเพื่อจ่าย</h2>
+      <div className="mx-auto flex h-64 w-64 items-center justify-center rounded-lg bg-white p-4 shadow-sm">
+        <QRCode value={payload} size={224}/>
+      </div>
+      <p className="mt-3 text-center text-sm text-muted-foreground">
+        PromptPay: <span className="font-mono">{id}</span>
+      </p>
+      <Button variant="outline" className="mt-4 w-full" onClick={() => downloadQr()}>
+        <Download className="mr-2 h-4 w-4"/>บันทึกรูป QR
+      </Button>
+    </Card>
+  );
+}
+
+function BankCard({ bank, amount }: { bank: { code: string; accountNumber: string; accountName: string }; amount: number }) {
+  const copy = async (text: string, label: string) => {
+    await navigator.clipboard.writeText(text);
+    toast.success(`คัดลอก${label}แล้ว`);
+  };
+  return (
+    <Card className="mb-4 p-6">
+      <div className="mb-3 flex items-center gap-3">
+        {/* <BankLogo code={bank.code}/> — optional asset; fall back to text */}
+        <div>
+          <p className="text-xs uppercase text-muted-foreground">โอนเงินไปที่</p>
+          <p className="font-semibold">{BANK_LABELS[bank.code]}</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <FieldRow label="เลขบัญชี" value={bank.accountNumber} onCopy={() => copy(bank.accountNumber, 'เลขบัญชี')}/>
+        <FieldRow label="ชื่อบัญชี" value={bank.accountName}/>
+        <FieldRow label="ยอดที่โอน" value={`฿${amount.toLocaleString('th-TH')}`} onCopy={() => copy(String(amount), 'ยอด')}/>
+      </div>
+    </Card>
+  );
+}
+
+function FieldRow({ label, value, onCopy }: { label: string; value: string; onCopy?: () => void }) {
+  return (
+    <div className="flex items-center justify-between rounded-md border bg-card px-3 py-2">
+      <div>
+        <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
+        <p className="font-mono">{value}</p>
+      </div>
+      {onCopy && (
+        <Button variant="ghost" size="icon" onClick={onCopy}>
+          <Copy className="h-4 w-4"/>
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -992,12 +1036,42 @@ function defaultMembersForType(type: ItemType, attendees: { memberId: string; dr
   /* MIXER */            return attendees.filter(a => a.drinkChoice !== 'NONE').map(a => a.memberId);
 }
 
+type PaymentType = 'PROMPTPAY' | 'BANK';
+const BANK_OPTIONS: { code: string; label: string }[] = [
+  { code: 'BBL',   label: 'ธ.กรุงเทพ' },
+  { code: 'KBANK', label: 'ธ.กสิกรไทย' },
+  { code: 'KTB',   label: 'ธ.กรุงไทย' },
+  { code: 'SCB',   label: 'ธ.ไทยพาณิชย์' },
+  { code: 'BAY',   label: 'ธ.กรุงศรีอยุธยา' },
+  { code: 'TTB',   label: 'ธ.ทหารไทยธนชาต' },
+  { code: 'GSB',   label: 'ธ.ออมสิน' },
+  { code: 'BAAC',  label: 'ธ.ก.ส.' },
+  { code: 'GHB',   label: 'ธ.อาคารสงเคราะห์' },
+  { code: 'UOB',   label: 'ธ.ยูโอบี' },
+  { code: 'CIMB',  label: 'ธ.ซีไอเอ็มบีไทย' },
+  { code: 'LHB',   label: 'ธ.แลนด์ฯ' },
+  { code: 'TISCO', label: 'ธ.ทิสโก้' },
+  { code: 'KKP',   label: 'ธ.เกียรตินาคิน' },
+];
+
 export default function BillCreatePage() {
   const [eventId, setEventId] = useState('');
   const [billName, setBillName] = useState('');
   const [rows, setRows] = useState<Row[]>([newRow()]);
   const { data: eventOptions } = useEventOptions();
   const { data: attendees } = useEventAttendees(eventId);
+
+  // Payment section state
+  const [paymentType, setPaymentType] = useState<PaymentType>('PROMPTPAY');
+  const [promptpayId, setPromptpayId] = useState(process.env.NEXT_PUBLIC_PROMPTPAY_DEFAULT ?? '');
+  const [bankCode, setBankCode] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankAccountName, setBankAccountName] = useState('');
+
+  const paymentValid =
+    paymentType === 'PROMPTPAY'
+      ? /^[0-9]{10,15}$/.test(promptpayId)
+      : bankCode !== '' && bankAccountNumber.trim() !== '' && bankAccountName.trim() !== '';
 
   const total = rows.reduce((s, r) => s + (Number(r.price) || 0), 0);
 
@@ -1029,6 +1103,55 @@ export default function BillCreatePage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <Separator/>
+
+          {/* ─── Payment section ─── */}
+          <div className="space-y-3">
+            <h2 className="font-semibold">ช่องทางการรับเงิน</h2>
+            <RadioGroup value={paymentType} onValueChange={(v) => setPaymentType(v as PaymentType)} className="grid grid-cols-2 gap-2">
+              {([['PROMPTPAY', '📱 PromptPay'], ['BANK', '🏦 โอนเข้าบัญชีธนาคาร']] as const).map(([v, l]) => (
+                <Label key={v} className="flex cursor-pointer items-center justify-center gap-2 rounded-md border bg-card p-3 text-sm font-medium has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <RadioGroupItem value={v} className="sr-only"/>{l}
+                </Label>
+              ))}
+            </RadioGroup>
+
+            {paymentType === 'PROMPTPAY' && (
+              <div className="space-y-2">
+                <Label>PromptPay ID (เบอร์ 10 หลัก หรือ บัตร 13 หลัก)</Label>
+                <Input
+                  value={promptpayId}
+                  onChange={(e) => setPromptpayId(e.target.value.replace(/\D/g, ''))}
+                  placeholder="0812345678"
+                  inputMode="numeric"
+                  maxLength={15}
+                />
+              </div>
+            )}
+
+            {paymentType === 'BANK' && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>ธนาคาร</Label>
+                  <Select value={bankCode} onValueChange={setBankCode}>
+                    <SelectTrigger><SelectValue placeholder="เลือกธนาคาร"/></SelectTrigger>
+                    <SelectContent>
+                      {BANK_OPTIONS.map(b => <SelectItem key={b.code} value={b.code}>{b.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>เลขบัญชี</Label>
+                  <Input value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} placeholder="123-4-56789-0"/>
+                </div>
+                <div className="space-y-2">
+                  <Label>ชื่อบัญชี</Label>
+                  <Input value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="สมชาย ใจดี" maxLength={100}/>
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator/>
@@ -1125,8 +1248,8 @@ export default function BillCreatePage() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline">บันทึก Draft</Button>
-            <Button disabled={!eventId || !billName || total === 0}>บันทึก + ส่งให้สมาชิก</Button>
+            <Button variant="outline" disabled={!eventId || !billName || total === 0 || !paymentValid}>บันทึก Draft</Button>
+            <Button disabled={!eventId || !billName || total === 0 || !paymentValid}>บันทึก + ส่งให้สมาชิก</Button>
           </div>
         </Card>
 
@@ -1327,6 +1450,21 @@ export const MOCK_BILL_PREVIEW = {
   ],
   warnings: [],
   total: 1600,
+};
+
+// Two example payment payloads (mirrors API /v1/events/:id/my-bill response shape)
+export const MOCK_PAYMENT_PROMPTPAY = {
+  type: 'PROMPTPAY' as const,
+  amount: 640,
+  promptpay: { id: '0812345678' },
+  bank: null,
+};
+
+export const MOCK_PAYMENT_BANK = {
+  type: 'BANK' as const,
+  amount: 640,
+  promptpay: null,
+  bank: { code: 'KBANK', accountNumber: '1234567890', accountName: 'สมชาย ใจดี' },
 };
 ```
 

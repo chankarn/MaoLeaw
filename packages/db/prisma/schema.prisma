@@ -64,14 +64,35 @@ enum PushDeliveryStatus {
   FAILED
 }
 
+enum PaymentType {
+  PROMPTPAY
+  BANK
+}
+
+enum BankCode {
+  BBL
+  KBANK
+  KTB
+  SCB
+  BAY
+  TTB
+  GSB
+  BAAC
+  GHB
+  UOB
+  CIMB
+  LHB
+  TISCO
+  KKP
+}
+
 // ───────────────────────── Models ─────────────────────────
 
 model AppConfig {
-  id                  String   @id @default("singleton")
-  promptpayIdOverride String?
-  memberTypeLabels    Json?
-  updatedAt           DateTime @updatedAt @db.Timestamptz(6)
-  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+  id               String   @id @default("singleton")
+  memberTypeLabels Json?
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model AdminUser {
@@ -105,13 +126,12 @@ model Member {
 }
 
 model Event {
-  id           String      @id @default(uuid()) @db.Uuid
-  name         String
-  venue        String
-  eventDate    DateTime    @db.Timestamptz(6)
-  status       EventStatus @default(ACTIVE)
-  customPromptpayId String?
-  createdById  String      @db.Uuid
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String
+  venue       String
+  eventDate   DateTime    @db.Timestamptz(6)
+  status      EventStatus @default(ACTIVE)
+  createdById String      @db.Uuid
   createdAt    DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime    @updatedAt @db.Timestamptz(6)
   deletedAt    DateTime?   @db.Timestamptz(6)
@@ -142,17 +162,22 @@ model Submission {
 }
 
 model Bill {
-  id          String     @id @default(uuid()) @db.Uuid
-  eventId     String     @unique @db.Uuid
-  name        String
-  status      BillStatus @default(DRAFT)
-  totalAmount Int        @default(0)
-  createdById String     @db.Uuid
-  sentAt      DateTime?  @db.Timestamptz(6)
-  closedAt    DateTime?  @db.Timestamptz(6)
-  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
-  deletedAt   DateTime?  @db.Timestamptz(6)
+  id                String      @id @default(uuid()) @db.Uuid
+  eventId           String      @unique @db.Uuid
+  name              String
+  status            BillStatus  @default(DRAFT)
+  totalAmount       Int         @default(0)
+  paymentType       PaymentType @default(PROMPTPAY)
+  promptpayId       String?     @db.VarChar(15)
+  bankCode          BankCode?
+  bankAccountNumber String?     @db.VarChar(30)
+  bankAccountName   String?     @db.VarChar(100)
+  createdById       String      @db.Uuid
+  sentAt            DateTime?   @db.Timestamptz(6)
+  closedAt          DateTime?   @db.Timestamptz(6)
+  createdAt         DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime    @updatedAt @db.Timestamptz(6)
+  deletedAt         DateTime?   @db.Timestamptz(6)
 
   event     Event       @relation(fields: [eventId], references: [id])
   createdBy AdminUser   @relation("BillCreatedBy", fields: [createdById], references: [id])

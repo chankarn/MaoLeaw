@@ -18,11 +18,6 @@ const changePasswordSchema = z.object({
 });
 
 const updateConfigSchema = z.object({
-  promptpayIdOverride: z
-    .string()
-    .regex(/^[0-9]{10,15}$/, 'ต้องเป็นเลข 10-15 หลัก')
-    .nullable()
-    .optional(),
   memberTypeLabels: z.record(z.string(), z.string().min(1).max(50)).nullable().optional(),
 });
 

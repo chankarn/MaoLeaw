@@ -1,5 +1,5 @@
 // File: packages/shared/src/constants.ts
-import type { MemberType, DrinkPreference, DrinkChoice } from './types';
+import type { MemberType, DrinkPreference, DrinkChoice, BankCode } from './types';
 
 export const MEMBER_TYPES: readonly { value: MemberType; label: string }[] = [
   { value: 'BD', label: 'เด็ก BD' },
@@ -28,6 +28,23 @@ export const BILL_ITEM_TYPE_LABELS = {
   BEER: 'เบียร์',
   SHARED: 'หารทุกคน',
 } as const;
+
+export const BANK_OPTIONS: readonly { value: BankCode; label: string; color: string }[] = [
+  { value: 'BBL',   label: 'ธนาคารกรุงเทพ',              color: '#1e3a8a' },
+  { value: 'KBANK', label: 'ธนาคารกสิกรไทย',             color: '#166534' },
+  { value: 'KTB',   label: 'ธนาคารกรุงไทย',              color: '#1d4ed8' },
+  { value: 'SCB',   label: 'ธนาคารไทยพาณิชย์',           color: '#6b21a8' },
+  { value: 'BAY',   label: 'ธนาคารกรุงศรีอยุธยา',         color: '#c2410c' },
+  { value: 'TTB',   label: 'ธนาคารทหารไทยธนชาต',          color: '#0369a1' },
+  { value: 'GSB',   label: 'ธนาคารออมสิน',               color: '#15803d' },
+  { value: 'BAAC',  label: 'ธนาคารเพื่อการเกษตรฯ (ธกส.)', color: '#166534' },
+  { value: 'GHB',   label: 'ธนาคารอาคารสงเคราะห์',       color: '#b45309' },
+  { value: 'UOB',   label: 'ธนาคารยูโอบี',               color: '#1e40af' },
+  { value: 'CIMB',  label: 'ธนาคารซีไอเอ็มบีไทย',        color: '#991b1b' },
+  { value: 'LHB',   label: 'ธนาคารแลนด์แอนด์เฮ้าส์',     color: '#d97706' },
+  { value: 'TISCO', label: 'ธนาคารทิสโก้',               color: '#b91c1c' },
+  { value: 'KKP',   label: 'ธนาคารเกียรตินาคินภัทร',      color: '#c2410c' },
+] as const;
 
 export const MAX_CUSTOM_NAME_LENGTH = 50;
 export const MAX_EVENT_NAME_LENGTH = 100;

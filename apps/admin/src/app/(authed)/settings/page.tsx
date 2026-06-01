@@ -7,7 +7,6 @@ import {
   FileText,
   KeyRound,
   Lock,
-  QrCode,
   Receipt,
   Settings as SettingsIcon,
   Tag,
@@ -207,54 +206,19 @@ function ProfileTab() {
 
 function AppConfigTab() {
   const { data: cfg, isLoading } = useAppConfig();
-  const update = useUpdateAppConfig();
-  const [ppId, setPpId] = useState('');
-
-  useEffect(() => {
-    if (cfg) setPpId(cfg.promptpayIdOverride ?? '');
-  }, [cfg]);
-
-  async function save() {
-    try {
-      await update.mutateAsync({
-        promptpayIdOverride: ppId.trim() ? ppId.trim() : null,
-      });
-      toast.success('บันทึก config แล้ว');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
-    }
-  }
 
   if (isLoading || !cfg) return <Skeleton />;
 
   return (
     <div className="space-y-6">
       <Card className="space-y-4 p-6">
-        <SectionTitle icon={<QrCode className="h-4 w-4" />} title="PromptPay Default" />
+        <SectionTitle icon={<SettingsIcon className="h-4 w-4" />} title="App Config" />
         <p className="text-sm text-muted-foreground">
-          PromptPay สำหรับ events ที่ไม่ได้ตั้งค่าเฉพาะ — override env default
+          ตั้งค่าระบบทั่วไป — ช่องทางชำระเงินตั้งได้ตอนสร้าง Bill แต่ละงาน
         </p>
-        <div className="space-y-2">
-          <Label htmlFor="ppid">PromptPay ID</Label>
-          <Input
-            id="ppid"
-            type="tel"
-            inputMode="numeric"
-            value={ppId}
-            onChange={(e) => setPpId(e.target.value.replace(/[^0-9]/g, '').slice(0, 15))}
-            placeholder="เช่น 0812345678"
-            maxLength={15}
-            className="font-mono"
-          />
-          <p className="text-xs text-muted-foreground">
-            ปล่อยว่าง = ใช้ค่าจาก .env ({process.env.NEXT_PUBLIC_PROMPTPAY_ID})
-          </p>
-        </div>
-        <div className="flex justify-end pt-2">
-          <Button onClick={save} disabled={update.isPending}>
-            {update.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
-          </Button>
-        </div>
+        <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+          ขณะนี้ยังไม่มี config เพิ่มเติม — ดู Member Type Labels ในแท็บ Labels
+        </p>
       </Card>
     </div>
   );
