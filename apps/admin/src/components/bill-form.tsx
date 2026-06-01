@@ -281,6 +281,9 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                       {BANK_OPTIONS.map((b) => (
                         <SelectItem key={b.value} value={b.value}>
                           {b.label}
+                          <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                            {b.short}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>

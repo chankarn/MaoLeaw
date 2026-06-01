@@ -375,6 +375,7 @@ function BankCard({
           🏦
         </div>
         <p className="font-semibold text-stone-800">{bank?.label ?? payment.bank.code}</p>
+        <p className="mt-0.5 font-mono text-xs text-stone-500">{bank?.short ?? payment.bank.code}</p>
       </div>
 
       <div className="mt-4 space-y-3">

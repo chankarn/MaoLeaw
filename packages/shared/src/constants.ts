@@ -29,21 +29,21 @@ export const BILL_ITEM_TYPE_LABELS = {
   SHARED: 'หารทุกคน',
 } as const;
 
-export const BANK_OPTIONS: readonly { value: BankCode; label: string; color: string }[] = [
-  { value: 'BBL',   label: 'ธนาคารกรุงเทพ',              color: '#1e3a8a' },
-  { value: 'KBANK', label: 'ธนาคารกสิกรไทย',             color: '#166534' },
-  { value: 'KTB',   label: 'ธนาคารกรุงไทย',              color: '#1d4ed8' },
-  { value: 'SCB',   label: 'ธนาคารไทยพาณิชย์',           color: '#6b21a8' },
-  { value: 'BAY',   label: 'ธนาคารกรุงศรีอยุธยา',         color: '#c2410c' },
-  { value: 'TTB',   label: 'ธนาคารทหารไทยธนชาต',          color: '#0369a1' },
-  { value: 'GSB',   label: 'ธนาคารออมสิน',               color: '#15803d' },
-  { value: 'BAAC',  label: 'ธนาคารเพื่อการเกษตรฯ (ธกส.)', color: '#166534' },
-  { value: 'GHB',   label: 'ธนาคารอาคารสงเคราะห์',       color: '#b45309' },
-  { value: 'UOB',   label: 'ธนาคารยูโอบี',               color: '#1e40af' },
-  { value: 'CIMB',  label: 'ธนาคารซีไอเอ็มบีไทย',        color: '#991b1b' },
-  { value: 'LHB',   label: 'ธนาคารแลนด์แอนด์เฮ้าส์',     color: '#d97706' },
-  { value: 'TISCO', label: 'ธนาคารทิสโก้',               color: '#b91c1c' },
-  { value: 'KKP',   label: 'ธนาคารเกียรตินาคินภัทร',      color: '#c2410c' },
+export const BANK_OPTIONS: readonly { value: BankCode; label: string; short: string; color: string }[] = [
+  { value: 'BBL',   label: 'ธนาคารกรุงเทพ',              short: 'BBL',      color: '#1e3a8a' },
+  { value: 'KBANK', label: 'ธนาคารกสิกรไทย',             short: 'KBank',    color: '#166534' },
+  { value: 'KTB',   label: 'ธนาคารกรุงไทย',              short: 'KTB',      color: '#1d4ed8' },
+  { value: 'SCB',   label: 'ธนาคารไทยพาณิชย์',           short: 'SCB',      color: '#6b21a8' },
+  { value: 'BAY',   label: 'ธนาคารกรุงศรีอยุธยา',         short: 'Krungsri', color: '#c2410c' },
+  { value: 'TTB',   label: 'ธนาคารทหารไทยธนชาต',          short: 'TTB',      color: '#0369a1' },
+  { value: 'GSB',   label: 'ธนาคารออมสิน',               short: 'GSB',      color: '#15803d' },
+  { value: 'BAAC',  label: 'ธนาคารเพื่อการเกษตรฯ (ธกส.)', short: 'BAAC',     color: '#166534' },
+  { value: 'GHB',   label: 'ธนาคารอาคารสงเคราะห์',       short: 'GHB',      color: '#b45309' },
+  { value: 'UOB',   label: 'ธนาคารยูโอบี',               short: 'UOB',      color: '#1e40af' },
+  { value: 'CIMB',  label: 'ธนาคารซีไอเอ็มบีไทย',        short: 'CIMB',     color: '#991b1b' },
+  { value: 'LHB',   label: 'ธนาคารแลนด์แอนด์เฮ้าส์',     short: 'LHB',      color: '#d97706' },
+  { value: 'TISCO', label: 'ธนาคารทิสโก้',               short: 'TISCO',    color: '#b91c1c' },
+  { value: 'KKP',   label: 'ธนาคารเกียรตินาคินภัทร',      short: 'KKP',      color: '#c2410c' },
 ] as const;
 
 export const MAX_CUSTOM_NAME_LENGTH = 50;
