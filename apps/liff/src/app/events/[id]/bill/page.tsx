@@ -11,12 +11,13 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { ErrorState } from '@/components/error-state';
 import { useClaimPaid, useMyBill } from '@/hooks/use-bill';
+import { ApiError } from '@/lib/api';
 import { cn, formatBaht } from '@/lib/utils';
 
 export default function MyBillPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { data, isLoading, isError, refetch } = useMyBill(id);
+  const { data, isLoading, isError, error, refetch } = useMyBill(id);
   const { mutateAsync: claimPaid, isPending: claiming } = useClaimPaid(id);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [claimOpen, setClaimOpen] = useState(false);
@@ -34,7 +35,11 @@ export default function MyBillPage() {
   }, [data]);
 
   if (isLoading) return <BillSkeleton />;
-  if (isError || !data) return <ErrorState onRetry={refetch} />;
+  if (isError || !data) {
+    const is404 = error instanceof ApiError && error.problem.status === 404;
+    if (is404) return <BillNotFound onBack={() => router.push('/')} />;
+    return <ErrorState onRetry={refetch} />;
+  }
 
   const { bill, myShare, qrPayload } = data;
   const isPaid = myShare.paymentStatus === 'PAID';
@@ -357,6 +362,24 @@ function BillSkeleton() {
       <div className="h-40 animate-pulse rounded-3xl bg-muted" />
       <div className="h-64 animate-pulse rounded-3xl bg-muted" />
       <div className="h-32 animate-pulse rounded-3xl bg-muted" />
+    </main>
+  );
+}
+
+function BillNotFound({ onBack }: { onBack: () => void }) {
+  return (
+    <main className="mx-auto flex min-h-[80vh] max-w-[480px] flex-col items-center justify-center px-6 text-center">
+      <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-stone-100">
+        <Receipt className="h-10 w-10 text-stone-400" />
+      </div>
+      <h2 className="mb-1.5 text-lg font-semibold">ไม่พบบิลนี้</h2>
+      <p className="mb-6 max-w-xs text-sm text-muted-foreground">
+        บิลอาจถูกลบไปแล้ว หรือคุณไม่ได้เป็นสมาชิกของบิลนี้
+      </p>
+      <Button onClick={onBack}>
+        <ArrowLeft className="mr-1.5 h-4 w-4" />
+        กลับหน้าหลัก
+      </Button>
     </main>
   );
 }

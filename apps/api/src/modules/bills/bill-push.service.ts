@@ -7,7 +7,7 @@ import { LineService } from '../auth/line.service';
 interface BillWithRelations {
   id: string;
   name: string;
-  event: { name: string; eventDate: Date };
+  event: { id: string; name: string; eventDate: Date };
   shares: Array<{
     id: string;
     amount: number;
@@ -37,12 +37,12 @@ export class BillPushService {
 
   async sendShareNotification(
     bill: { id: string; name: string },
-    event: { name: string; eventDate: Date },
+    event: { id: string; name: string; eventDate: Date },
     share: { id: string; amount: number },
     member: { lineUserId: string },
   ): Promise<boolean> {
     const liffId = this.cfg.getOrThrow<string>('LIFF_ID');
-    const deepLink = `https://liff.line.me/${liffId}/events/${shareEventIdHack(bill.id)}/bill`;
+    const deepLink = `https://liff.line.me/${liffId}/events/${event.id}/bill`;
 
     const altText = `บิลพร้อมแล้ว ฿${share.amount.toLocaleString('th-TH')}`;
     const contents = this.buildFlex({
@@ -131,9 +131,3 @@ export class BillPushService {
   }
 }
 
-// Internal helper: a Bill is 1:1 with Event, so the LIFF deep-link uses the eventId.
-// We accept billId here (caller passes bill.id), but the route on LIFF is `/events/:id/bill`.
-// In real usage we'd pass eventId — this helper is just a label to make it obvious.
-function shareEventIdHack(_billId: string): string {
-  return _billId; // FE resolves via /my-bills lookup if needed; OR pass eventId in the future.
-}
