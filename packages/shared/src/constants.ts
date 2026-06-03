@@ -26,7 +26,9 @@ export const DRINK_CHOICES: readonly { value: DrinkChoice; label: string; emoji:
 export const BILL_ITEM_TYPE_LABELS = {
   LIQUOR: 'เหล้า',
   BEER: 'เบียร์',
+  MIXER: 'มิกเซอร์',
   SHARED: 'หารทุกคน',
+  CUSTOM: 'เลือกเอง',
 } as const;
 
 export const BANK_OPTIONS: readonly { value: BankCode; label: string; short: string; color: string }[] = [

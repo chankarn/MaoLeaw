@@ -249,13 +249,17 @@ Form:
       Row:
         - ชื่อ (text)
         - ราคา (number, ≥ 0)
-        - ประเภท (dropdown: เหล้า / เบียร์ / มิกเซอร์ / หารทุกคน)
-        - ร่วมหาร: 👥 N คน [+ เพิ่มคน]
-            └─ จำนวนคนที่ร่วมหารจริง (default ตามประเภท + extras ที่ admin add)
-            └─ ปุ่ม [+ เพิ่มคน] → popover แสดงคนที่ยังไม่ได้อยู่ใน default
-               ของประเภทนั้น (มี checkbox ติ๊กเลือกเพิ่ม)
-            └─ admin add คนพิเศษได้ทุกประเภท (รวม SHARED — แม้ว่าจะไม่มี
-               effect เพราะ SHARED หารทุกคนอยู่แล้ว, UI hide ปุ่มสำหรับ SHARED)
+        - ประเภท (dropdown: เหล้า / เบียร์ / มิกเซอร์ / หารทุกคน / เลือกเอง)
+        - ร่วมหาร: 👥 N คน  [ปุ่มขึ้นกับประเภท ดูด้านล่าง]
+            ─ เหล้า / เบียร์ / มิกเซอร์:
+                └─ default set ตามประเภท + ปุ่ม [+ เพิ่มคน]
+                   → popover แสดงคนนอก default (checkbox ติ๊กเพิ่ม)
+            ─ หารทุกคน:
+                └─ แสดง "ทุกคน (K คน)" อย่างเดียว ไม่มีปุ่มเพิ่ม
+            ─ เลือกเอง:
+                └─ checklist ของ attendees ทั้งหมด (pre-deselect ทั้งหมด)
+                   admin ติ๊กเองอิสระ ต้องเลือกอย่างน้อย 1 คน
+                   แสดง chip ชื่อที่เลือก + จำนวน "N คน"
         - [🗑]
   • Summary (auto-calc):
       Total: ฿XXX
@@ -263,7 +267,10 @@ Form:
       Beer items: ฿XX (หาร eligible_i คน → ฿YY/คน)
       Mixer items: ฿XX (หาร eligible_i คน → ฿YY/คน)
       Shared items: ฿XX (หารทุกคน K คน → ฿YY/คน)
-      *eligible_i คือคน default ตามประเภท ∪ extraMemberIds ของ item นั้น
+      Custom items: ฿XX (หาร N คนที่เลือก → ฿YY/คน)
+      *eligible_i คือ:
+        - ประเภทอื่น: คน default ตามประเภท ∪ extraMemberIds
+        - เลือกเอง: เฉพาะ customMemberIds ที่ admin เลือก (ไม่มี default)
   • ช่องทางการรับเงิน (required):
       Radio: [● PromptPay  ○ ธนาคาร]
       ─ PromptPay:
@@ -296,25 +303,26 @@ Actions: [👁 View] (ดู events ที่เข้าร่วม) | [🚫 B
   attendees = list ของ submission ใน event E (after closed)
 
   สำหรับแต่ละ item i ใน bill:
-    # เริ่มจาก default set ตามประเภท
     if i.type == 'shared':
-      base = attendees
+      eligible = attendees                                    # ทุกคน
     elif i.type == 'liquor':
       base = attendees.filter(drink == 'liquor')
+      eligible = base ∪ attendees.filter(id in i.extraMemberIds)
     elif i.type == 'beer':
       base = attendees.filter(drink == 'beer')
+      eligible = base ∪ attendees.filter(id in i.extraMemberIds)
     elif i.type == 'mixer':
-      base = attendees.filter(drink in ['liquor', 'beer'])  # คนกินอัลกอฮอล์ทั้งหมด
-
-    # union กับ extras ที่ admin add ผ่าน UI (รายคน รายรายการ)
-    eligible = base ∪ attendees.filter(id in i.extraMemberIds)
+      base = attendees.filter(drink in ['liquor', 'beer'])
+      eligible = base ∪ attendees.filter(id in i.extraMemberIds)
+    elif i.type == 'custom':
+      eligible = attendees.filter(id in i.customMemberIds)   # admin เลือกเองทั้งหมด
 
     if len(eligible) == 0: skip (warning to admin)
     perPerson_i = i.price / len(eligible)
     → add perPerson_i ให้คนใน eligible
 
-  → คนที่เลือก 'ไม่กินแอล' จ่ายเฉพาะ shared items by default
-    (เว้นแต่ admin จะ add เข้ามาในรายการ liquor/beer/mixer เป็นรายตัว)
+  → คนที่เลือก 'ไม่กินแอล' จ่ายเฉพาะ shared + custom items ที่ admin เลือกชื่อไว้
+    (เว้นแต่ admin จะ extraMemberIds เข้า liquor/beer/mixer เป็นรายตัว)
 
 ปัดเศษ: round up ทศนิยม → ส่วนต่างเป็น "tip" ที่ admin/เจ้าภาพรับไป
 ```
@@ -413,7 +421,9 @@ erDiagram
     uuid billId FK
     string name
     int price
-    enum type "liquor|beer|shared"
+    enum type "liquor|beer|mixer|shared|custom"
+    uuid[] extraMemberIds "nullable — extras สำหรับ liquor/beer/mixer"
+    uuid[] customMemberIds "nullable — ใช้เฉพาะ custom type"
   }
 
   BillShare {
@@ -442,6 +452,8 @@ erDiagram
 | `Submission.drinkChoice` | enum | `liquor` / `beer` / `none` (มีตัวเลือกที่ 3 เฉพาะ submission) |
 | `Event.eventDate` | datetime | future หรือ past ก็ได้ (แก้ย้อนหลังได้) |
 | `BillItem.price` | int (THB) | ≥ 0, เก็บเป็น integer (บาท ไม่มีสตางค์) |
+| `BillItem.type` | enum | `liquor` / `beer` / `mixer` / `shared` / `custom` |
+| `BillItem.customMemberIds` | uuid[] | required เมื่อ type = `custom`, ต้องมีอย่างน้อย 1 รายการ; null สำหรับ type อื่น |
 | `AdminUser.password` | string | bcrypt hash, plaintext min 10 chars |
 
 ### 4.3 UI Element Inventory (จะ map ในขั้นตอน UX/UI)
@@ -570,6 +582,7 @@ erDiagram
 | Payment channel | Per-bill: PROMPTPAY (QR generate client-side) หรือ BANK (logo + account info card). PromptPay default จาก env PROMPTPAY_ID, ปรับได้ต่อบิล | ยืดหยุ่นต่อ host (เจ้าภาพต่างคนต่างบัญชีก็ได้), ไม่กิน storage (no QR upload), รองรับ user ที่ไม่ใช้ PromptPay |
 | LINE Profile | Cache `pictureUrl` + `displayName` in DB | offline-friendly, sync ทุก login |
 | Bill split (ไม่กินแอล) | default = จ่ายเฉพาะ shared items; admin add เข้า liquor/beer/mixer items เป็นรายตัวได้ (`extraMemberIds[]` ต่อ item) | Fair-by-default + ยืดหยุ่นสำหรับ edge cases (เช่น คนไม่กินแอลแต่กินโซดา) — control อยู่ที่ admin ตอนสร้างบิล ไม่ต้องถาม user ตอน submit |
+| Bill split (อาหารเฉพาะกลุ่ม) | type `custom` — admin เลือกรายชื่อคนที่ร่วมหารอิสระ (`customMemberIds[]`) | รองรับอาหารที่สั่งเฉพาะบางโต๊ะ/บางคน โดยไม่ผูกกับประเภทเครื่องดื่ม |
 | Notification | LINE Push (Messaging API) | Native UX, ฟรี 500/เดือน |
 | Edit submission | แก้ได้จนกว่า admin จะปิดบิล | Flexible |
 | Hosting | Vercel + Render + Supabase | ฟรี 100% (มี cold-start trade-off) |

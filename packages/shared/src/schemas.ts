@@ -14,7 +14,7 @@ export const drinkChoiceSchema = z.enum(['LIQUOR', 'BEER', 'NONE']);
 export const memberTypeSchema = z.enum(['BD', 'TL', 'KU', 'SWU', 'CU', 'KMITL', 'FRIEND', 'OTHER']);
 export const eventStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
 export const billStatusSchema = z.enum(['DRAFT', 'SENT', 'CLOSED']);
-export const billItemTypeSchema = z.enum(['LIQUOR', 'BEER', 'MIXER', 'SHARED']);
+export const billItemTypeSchema = z.enum(['LIQUOR', 'BEER', 'MIXER', 'SHARED', 'CUSTOM']);
 export const paymentTypeSchema = z.enum(['PROMPTPAY', 'BANK']);
 export const bankCodeSchema = z.enum(['BBL', 'KBANK', 'KTB', 'SCB', 'BAY', 'TTB', 'GSB', 'BAAC', 'GHB', 'UOB', 'CIMB', 'LHB', 'TISCO', 'KKP']);
 
@@ -62,13 +62,27 @@ export type CreateEventInput = z.infer<typeof createEventSchema>;
 export const updateEventSchema = createEventSchema.partial();
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 
-export const billItemInputSchema = z.object({
-  name: z.string().trim().min(1).max(MAX_ITEM_NAME_LENGTH),
-  price: z.number().int().nonnegative(),
-  itemType: billItemTypeSchema,
-  extraMemberIds: z.array(z.string().uuid()).default([]),
-  sortOrder: z.number().int().nonnegative().default(0),
-});
+export const billItemInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(MAX_ITEM_NAME_LENGTH),
+    price: z.number().int().nonnegative(),
+    itemType: billItemTypeSchema,
+    extraMemberIds: z.array(z.string().uuid()).default([]),
+    customMemberIds: z.array(z.string().uuid()).default([]),
+    sortOrder: z.number().int().nonnegative().default(0),
+  })
+  .superRefine((val, ctx) => {
+    if (val.itemType === 'CUSTOM' && val.customMemberIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.too_small,
+        minimum: 1,
+        type: 'array',
+        inclusive: true,
+        message: 'ต้องเลือกอย่างน้อย 1 คนสำหรับรายการประเภท "เลือกเอง"',
+        path: ['customMemberIds'],
+      });
+    }
+  });
 
 const billPaymentSchema = z.discriminatedUnion('paymentType', [
   z.object({

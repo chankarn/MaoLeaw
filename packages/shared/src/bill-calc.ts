@@ -2,14 +2,14 @@
 // Canonical bill-splitting algorithm. Pure function — no IO, deterministic, easily testable.
 //
 // Rules (from PRD §3.3):
-//   - Each item has an itemType (LIQUOR/BEER/MIXER/SHARED) which picks the default eligible set:
+//   - Each item has an itemType (LIQUOR/BEER/MIXER/SHARED/CUSTOM):
 //       SHARED → all attendees
 //       LIQUOR → attendees with drinkChoice === 'LIQUOR'
 //       BEER   → attendees with drinkChoice === 'BEER'
 //       MIXER  → all alcohol drinkers (LIQUOR + BEER)
-//   - Each item also has `extraMemberIds` — admin-added extras that union with the default.
-//     This lets admin pull e.g. a 'NONE' drinker into a MIXER item, or a beer drinker into a
-//     LIQUOR item, on a per-item basis without touching their submission.
+//       CUSTOM → exactly the members in `customMemberIds` (admin picks freely)
+//   - For LIQUOR/BEER/MIXER/SHARED, `extraMemberIds` unions with the default set.
+//   - For CUSTOM, `customMemberIds` IS the eligible set — no default, no extras.
 //   - If the final eligible set is empty, the item is skipped and a warning is emitted.
 //   - Per-person amount uses Math.ceil so any rounding surplus favors the collector.
 //
@@ -22,6 +22,7 @@ export interface CalcItem {
   price: number;
   itemType: BillItemType;
   extraMemberIds: string[];
+  customMemberIds?: string[];
 }
 
 export interface CalcAttendee {
@@ -69,8 +70,8 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
     });
   }
 
-  // Default eligible set per item type. Returns attendees (not just ids) for stable iteration.
-  function defaultEligible(type: BillItemType): CalcAttendee[] {
+  // Default eligible set per item type (not used for CUSTOM).
+  function defaultEligible(type: Exclude<BillItemType, 'CUSTOM'>): CalcAttendee[] {
     switch (type) {
       case 'SHARED':
         return attendees;
@@ -85,7 +86,7 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
 
   // Which bucket to credit per type.
   function bucketKey(type: BillItemType): keyof Pick<CalcShare, 'sharedAmount' | 'drinkAmount' | 'mixerAmount'> {
-    if (type === 'SHARED') return 'sharedAmount';
+    if (type === 'SHARED' || type === 'CUSTOM') return 'sharedAmount';
     if (type === 'MIXER') return 'mixerAmount';
     return 'drinkAmount'; // LIQUOR | BEER
   }
@@ -96,15 +97,22 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
     }
     if (item.price === 0) continue;
 
-    const extras = new Set(item.extraMemberIds ?? []);
-    const base = defaultEligible(item.itemType);
-    const baseIds = new Set(base.map((a) => a.memberId));
+    let eligible: CalcAttendee[];
 
-    // eligible = base ∪ (attendees whose id is in extras), preserving order: base first, extras appended.
-    const eligible: CalcAttendee[] = [
-      ...base,
-      ...attendees.filter((a) => extras.has(a.memberId) && !baseIds.has(a.memberId)),
-    ];
+    if (item.itemType === 'CUSTOM') {
+      // Admin-selected set: no default, no extras — customMemberIds IS the full eligible set.
+      const customSet = new Set(item.customMemberIds ?? []);
+      eligible = attendees.filter((a) => customSet.has(a.memberId));
+    } else {
+      const extras = new Set(item.extraMemberIds ?? []);
+      const base = defaultEligible(item.itemType);
+      const baseIds = new Set(base.map((a) => a.memberId));
+      // eligible = base ∪ (attendees whose id is in extras), base first.
+      eligible = [
+        ...base,
+        ...attendees.filter((a) => extras.has(a.memberId) && !baseIds.has(a.memberId)),
+      ];
+    }
 
     if (eligible.length === 0) {
       warnings.push(`NO_ELIGIBLE_${item.itemType}:${item.id}`);

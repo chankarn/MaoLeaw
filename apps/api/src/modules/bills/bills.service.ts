@@ -94,7 +94,7 @@ export class BillsService {
     }
 
     const attendeeIds = new Set(event.submissions.map((s) => s.memberId));
-    validateExtras(input.items, attendeeIds);
+    validateItemMembers(input.items, attendeeIds);
 
     const attendees: CalcAttendee[] = event.submissions.map((s) => ({
       memberId: s.memberId,
@@ -107,6 +107,7 @@ export class BillsService {
       price: it.price,
       itemType: it.itemType,
       extraMemberIds: it.extraMemberIds ?? [],
+      customMemberIds: it.customMemberIds ?? [],
     }));
     const { shares } = calculateBill(itemsForCalc, attendees);
     const total = sumItemPrices(itemsForCalc);
@@ -130,6 +131,7 @@ export class BillsService {
               price: it.price,
               itemType: it.itemType,
               extraMemberIds: it.extraMemberIds ?? [],
+              customMemberIds: it.customMemberIds ?? [],
               sortOrder: it.sortOrder ?? idx,
             })),
           },
@@ -180,7 +182,7 @@ export class BillsService {
       }
       if (input.items) {
         const attendeeIds = new Set(bill.event.submissions.map((s) => s.memberId));
-        validateExtras(input.items, attendeeIds);
+        validateItemMembers(input.items, attendeeIds);
 
         // Replace items + recompute shares.
         await tx.billItem.deleteMany({ where: { billId } });
@@ -195,6 +197,7 @@ export class BillsService {
           price: it.price,
           itemType: it.itemType,
           extraMemberIds: it.extraMemberIds ?? [],
+          customMemberIds: it.customMemberIds ?? [],
         }));
         const { shares } = calculateBill(itemsForCalc, attendees);
         const total = sumItemPrices(itemsForCalc);
@@ -206,6 +209,7 @@ export class BillsService {
             price: it.price,
             itemType: it.itemType,
             extraMemberIds: it.extraMemberIds ?? [],
+            customMemberIds: it.customMemberIds ?? [],
             sortOrder: it.sortOrder ?? idx,
           })),
         });
@@ -238,7 +242,7 @@ export class BillsService {
 
   async calculatePreview(
     eventId: string,
-    items: { price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED'; extraMemberIds?: string[] }[],
+    items: { price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED' | 'CUSTOM'; extraMemberIds?: string[]; customMemberIds?: string[] }[],
   ) {
     const event = await prisma.event.findFirst({
       where: { id: eventId, deletedAt: null },
@@ -257,6 +261,7 @@ export class BillsService {
         price: it.price,
         itemType: it.itemType,
         extraMemberIds: it.extraMemberIds ?? [],
+        customMemberIds: it.customMemberIds ?? [],
       })),
       attendees,
     );
@@ -419,12 +424,26 @@ export class BillsService {
 
 }
 
-/** Throws BadRequestException if any extraMemberIds entry isn't an attendee of the event. */
-function validateExtras(items: { extraMemberIds?: string[] }[], attendeeIds: Set<string>) {
+/** Validates extraMemberIds and customMemberIds against the event's attendee list. */
+function validateItemMembers(
+  items: { itemType: string; extraMemberIds?: string[]; customMemberIds?: string[] }[],
+  attendeeIds: Set<string>,
+) {
   items.forEach((it, i) => {
     for (const id of it.extraMemberIds ?? []) {
       if (!attendeeIds.has(id)) {
         throw new BadRequestException(`Item #${i + 1}: ${id} is not an attendee of this event`);
+      }
+    }
+    if (it.itemType === 'CUSTOM') {
+      const custom = it.customMemberIds ?? [];
+      if (custom.length === 0) {
+        throw new BadRequestException(`Item #${i + 1}: CUSTOM items must have at least one member selected`);
+      }
+      for (const id of custom) {
+        if (!attendeeIds.has(id)) {
+          throw new BadRequestException(`Item #${i + 1}: ${id} is not an attendee of this event`);
+        }
       }
     }
   });

@@ -38,6 +38,7 @@ export default function EditBillPage() {
           price: it.price,
           itemType: it.itemType,
           extraMemberIds: it.extraMemberIds ?? [],
+          customMemberIds: it.customMemberIds ?? [],
           sortOrder: it.sortOrder,
         })),
       }}

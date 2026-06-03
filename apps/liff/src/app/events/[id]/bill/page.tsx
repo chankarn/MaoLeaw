@@ -303,6 +303,10 @@ export default function MyBillPage() {
                 {formatBaht(myShare.amount)}
               </p>
             </div>
+            <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-800">
+              <span className="mt-0.5 shrink-0 text-base">📸</span>
+              <p>อย่าลืม<span className="font-semibold">ส่งรูปสลิปมาในแชท LINE OA</span> ด้วยนะ เพื่อให้ admin ตรวจสอบได้เร็วขึ้น</p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="note">หมายเหตุ (ถ้ามี)</Label>
               <textarea

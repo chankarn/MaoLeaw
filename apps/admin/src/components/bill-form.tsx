@@ -21,16 +21,17 @@ interface RowState {
   price: number | '';
   itemType: BillItemType;
   extraMemberIds: string[];
-  expanded: boolean; // local UI state for the per-row member picker
+  customMemberIds: string[];
+  expanded: boolean;
 }
 
 function newRow(itemType: BillItemType = 'SHARED'): RowState {
-  return { tempId: crypto.randomUUID(), name: '', price: '', itemType, extraMemberIds: [], expanded: false };
+  return { tempId: crypto.randomUUID(), name: '', price: '', itemType, extraMemberIds: [], customMemberIds: [], expanded: false };
 }
 
-/** Members who share an item by default, based purely on item type. */
+/** Members who share an item by default, based purely on item type (not used for CUSTOM). */
 function defaultMemberIdsForType(
-  type: BillItemType,
+  type: Exclude<BillItemType, 'CUSTOM'>,
   attendees: { memberId: string; drinkChoice: DrinkChoice }[],
 ): string[] {
   switch (type) {
@@ -60,6 +61,7 @@ export interface BillFormInitial {
     price: number;
     itemType: BillItemType;
     extraMemberIds: string[];
+    customMemberIds: string[];
     sortOrder: number;
   }>;
 }
@@ -90,6 +92,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
           price: it.price,
           itemType: it.itemType,
           extraMemberIds: it.extraMemberIds ?? [],
+          customMemberIds: it.customMemberIds ?? [],
           expanded: false,
         }))
       : [newRow()],
@@ -116,6 +119,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
         price: r.price as number,
         itemType: r.itemType,
         extraMemberIds: r.extraMemberIds,
+        customMemberIds: r.customMemberIds,
       }));
     if (items.length === 0) return null;
     try {
@@ -136,7 +140,11 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
   const canSubmit =
     !!eventId &&
     !!billName.trim() &&
-    rows.every((r) => r.name.trim() && typeof r.price === 'number' && r.price >= 0) &&
+    rows.every((r) => {
+      if (!r.name.trim() || typeof r.price !== 'number' || r.price < 0) return false;
+      if (r.itemType === 'CUSTOM' && r.customMemberIds.length === 0) return false;
+      return true;
+    }) &&
     total > 0 &&
     paymentValid &&
     !submitting;
@@ -148,6 +156,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
       price: r.price as number,
       itemType: r.itemType,
       extraMemberIds: r.extraMemberIds,
+      customMemberIds: r.customMemberIds,
       sortOrder: idx,
     }));
     const paymentFields =
@@ -335,12 +344,20 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
               </div>
 
               {rows.map((r, idx) => {
-                const baseIds = attendees.data
-                  ? defaultMemberIdsForType(r.itemType, attendees.data)
+                const isCustom = r.itemType === 'CUSTOM';
+                const isShared = r.itemType === 'SHARED';
+
+                const baseIds = attendees.data && !isCustom
+                  ? defaultMemberIdsForType(r.itemType as Exclude<BillItemType, 'CUSTOM'>, attendees.data)
                   : [];
                 const baseSet = new Set(baseIds);
-                const eligibleCount = new Set([...baseIds, ...r.extraMemberIds]).size;
+                const eligibleCount = isCustom
+                  ? r.customMemberIds.length
+                  : new Set([...baseIds, ...r.extraMemberIds]).size;
                 const candidateExtras = (attendees.data ?? []).filter((a) => !baseSet.has(a.memberId));
+
+                // Button is clickable for CUSTOM (always show picker) or when there are extras to add.
+                const canExpand = !!attendees.data && (isCustom || candidateExtras.length > 0);
 
                 return (
                   <div key={r.tempId} className="space-y-2">
@@ -364,7 +381,12 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                       <Select
                         value={r.itemType}
                         onValueChange={(v) =>
-                          updateRow(idx, { itemType: v as BillItemType, extraMemberIds: [] })
+                          updateRow(idx, {
+                            itemType: v as BillItemType,
+                            extraMemberIds: [],
+                            customMemberIds: [],
+                            expanded: v === 'CUSTOM',
+                          })
                         }
                       >
                         <SelectTrigger>
@@ -375,31 +397,43 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                           <SelectItem value="BEER">🍺 เบียร์</SelectItem>
                           <SelectItem value="MIXER">🧊 มิกเซอร์</SelectItem>
                           <SelectItem value="SHARED">👥 หารทุกคน</SelectItem>
+                          <SelectItem value="CUSTOM">✏️ เลือกเอง</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateRow(idx, { expanded: !r.expanded })}
-                        disabled={!attendees.data || candidateExtras.length === 0}
-                        className="justify-start gap-1.5 px-2"
-                      >
-                        <Users className="h-3.5 w-3.5" />
-                        <span className="font-mono tabular-nums">{eligibleCount}</span>
-                        <span className="text-xs text-muted-foreground">คน</span>
-                        {r.extraMemberIds.length > 0 && (
-                          <span className="ml-auto rounded bg-drink-mixer/15 px-1 text-[10px] font-medium text-drink-mixer">
-                            +{r.extraMemberIds.length}
-                          </span>
-                        )}
-                        {candidateExtras.length > 0 &&
-                          (r.expanded ? (
-                            <ChevronUp className="ml-auto h-3.5 w-3.5 opacity-60" />
-                          ) : (
-                            <ChevronDown className="ml-auto h-3.5 w-3.5 opacity-60" />
-                          ))}
-                      </Button>
+
+                      {isShared ? (
+                        // SHARED — read-only count, no picker needed
+                        <div className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 text-sm text-muted-foreground">
+                          <Users className="h-3.5 w-3.5" />
+                          <span className="font-mono tabular-nums">{eligibleCount}</span>
+                          <span className="text-xs">คน</span>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant={isCustom && r.customMemberIds.length === 0 ? 'destructive' : 'outline'}
+                          size="sm"
+                          onClick={() => updateRow(idx, { expanded: !r.expanded })}
+                          disabled={!canExpand}
+                          className="justify-start gap-1.5 px-2"
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                          <span className="font-mono tabular-nums">{eligibleCount}</span>
+                          <span className="text-xs text-muted-foreground">คน</span>
+                          {!isCustom && r.extraMemberIds.length > 0 && (
+                            <span className="ml-auto rounded bg-drink-mixer/15 px-1 text-[10px] font-medium text-drink-mixer">
+                              +{r.extraMemberIds.length}
+                            </span>
+                          )}
+                          {canExpand &&
+                            (r.expanded ? (
+                              <ChevronUp className="ml-auto h-3.5 w-3.5 opacity-60" />
+                            ) : (
+                              <ChevronDown className="ml-auto h-3.5 w-3.5 opacity-60" />
+                            ))}
+                        </Button>
+                      )}
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -411,7 +445,8 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                       </Button>
                     </div>
 
-                    {r.expanded && candidateExtras.length > 0 && (
+                    {/* ── Extras picker (LIQUOR / BEER / MIXER) ── */}
+                    {r.expanded && !isCustom && candidateExtras.length > 0 && (
                       <div className="ml-1 rounded-md border bg-muted/30 p-3">
                         <p className="mb-2 text-xs font-medium text-muted-foreground">
                           เพิ่มคนเข้ารายการนี้เป็นพิเศษ — คน default ตามประเภท
@@ -446,6 +481,47 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                             );
                           })}
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── Custom picker (CUSTOM) ── */}
+                    {r.expanded && isCustom && (attendees.data ?? []).length > 0 && (
+                      <div className="ml-1 rounded-md border border-primary/20 bg-primary/5 p-3">
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">
+                          เลือกคนที่ร่วมหารรายการนี้ (ต้องเลือกอย่างน้อย 1 คน)
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {(attendees.data ?? []).map((a) => {
+                            const checked = r.customMemberIds.includes(a.memberId);
+                            return (
+                              <label
+                                key={a.memberId}
+                                className={cn(
+                                  'flex cursor-pointer items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm transition-colors',
+                                  checked && 'border-primary bg-primary/5',
+                                )}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onChange={(e) =>
+                                    updateRow(idx, {
+                                      customMemberIds: e.target.checked
+                                        ? [...r.customMemberIds, a.memberId]
+                                        : r.customMemberIds.filter((id) => id !== a.memberId),
+                                    })
+                                  }
+                                />
+                                <span>{a.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  ({drinkLabel(a.drinkChoice)})
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {r.customMemberIds.length === 0 && (
+                          <p className="mt-2 text-xs text-destructive">ยังไม่ได้เลือกใคร</p>
+                        )}
                       </div>
                     )}
                   </div>

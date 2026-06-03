@@ -50,6 +50,7 @@ enum BillItemType {
   BEER
   MIXER
   SHARED
+  CUSTOM
 }
 
 enum PaymentStatus {
@@ -188,13 +189,14 @@ model Bill {
 }
 
 model BillItem {
-  id             String       @id @default(uuid()) @db.Uuid
-  billId         String       @db.Uuid
-  name           String
-  price          Int
-  itemType       BillItemType
-  extraMemberIds String[]     @default([]) @db.Uuid
-  sortOrder      Int          @default(0)
+  id              String       @id @default(uuid()) @db.Uuid
+  billId          String       @db.Uuid
+  name            String
+  price           Int
+  itemType        BillItemType
+  extraMemberIds  String[]     @default([]) @db.Uuid
+  customMemberIds String[]     @default([]) @db.Uuid
+  sortOrder       Int          @default(0)
 
   bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
 

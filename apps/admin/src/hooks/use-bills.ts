@@ -33,8 +33,9 @@ interface AdminBillDetail {
     id: string;
     name: string;
     price: number;
-    itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED';
+    itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED' | 'CUSTOM';
     extraMemberIds: string[];
+    customMemberIds: string[];
     sortOrder: number;
   }>;
   shares: Array<{
