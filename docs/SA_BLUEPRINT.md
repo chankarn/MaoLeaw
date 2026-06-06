@@ -1075,4 +1075,241 @@ GitHub PR
 
 ---
 
-**End of SA Blueprint v1.0**
+## 8. Phase 2 Blueprint (PRD §11)
+
+> Added 2026-06-06. Covers **F-7 Chat Command Bot (1-on-1 Reply)** และ **F-8/A-8 Standalone Bill (หารทั่วไป)**.
+> ทั้งคู่ออกแบบให้ $0 free-tier · ไม่มี model ใหม่สำหรับ F-7 · F-8 แก้ `Bill.eventId` เป็น nullable.
+
+### 8.A — F-7: Chat Command Bot (1-on-1 Reply)
+
+#### 8.A.1 Overview
+- ไม่มี table ใหม่ — query จาก `Member → BillShare → Bill` (relations มีอยู่แล้ว)
+- **ไม่ต้องเพิ่ม env** — `LINE_CHANNEL_SECRET` มีอยู่แล้วใน `env.validation.ts` (PRD §11.2 ที่บอกว่า "env ใหม่" คลาดเคลื่อน — ใช้ตัวเดิมได้)
+- ข้อความ **reply** ผ่าน `/v2/bot/message/reply` = ฟรี ไม่กินโควต้า push 500/เดือน
+
+#### 8.A.2 Sequence (Webhook → Reply)
+```mermaid
+sequenceDiagram
+  participant U as User (LINE 1-on-1)
+  participant L as LINE Platform
+  participant G as LineSignatureGuard
+  participant W as LineWebhookController
+  participant S as LineWebhookService
+  participant DB as Prisma
+
+  U->>L: พิมพ์ "บิล"
+  L->>G: POST /v1/line/webhook (X-Line-Signature, raw body)
+  G->>G: HMAC-SHA256(rawBody, CHANNEL_SECRET) == signature ?
+  alt invalid
+    G-->>L: 401
+  else valid
+    G->>W: events[]
+    W->>S: handleEvent(event)
+    S->>DB: member by lineUserId
+    S->>DB: outstanding shares (PENDING/CLAIMED, bill != CLOSED)
+    S->>L: reply(replyToken, Flex)  %% free
+    L-->>U: แสดงยอดค้าง + ปุ่ม LIFF
+  end
+```
+
+#### 8.A.3 API Contract — Webhook
+**POST `/v1/line/webhook`** · auth: **LINE signature** (ไม่ใช่ JWT) · throttle: ยกเว้น (LINE มี retry เอง)
+
+Request (จาก LINE, ตัวอย่าง):
+```json
+{
+  "destination": "Uxxxx",
+  "events": [
+    {
+      "type": "message",
+      "replyToken": "0f3779fba3b349968c5d07db31eab56f",
+      "source": { "type": "user", "userId": "U123..." },
+      "message": { "type": "text", "id": "1", "text": "บิล" }
+    }
+  ]
+}
+```
+Response: `200 OK` (body ว่าง) เสมอเมื่อ signature ผ่าน — แม้ไม่มี member/ไม่ match intent (ตอบผ่าน reply ไปแล้ว). Signature ไม่ผ่าน → `401`.
+
+> **Webhook verify ของ LINE Console**: ส่ง `events: []` → ตอบ 200 ทันที (no-op).
+
+#### 8.A.4 Intent Resolver (pure, testable)
+```
+normalize(text) = text.trim().toLowerCase()
+MY_DEBT  ← contains any: บิล, ค้าง, จ่าย, หนี้, bill
+EVENTS   ← contains any: งาน, อีเวนต์, event, นัด
+HELP     ← default (รวม non-text messages)
+```
+แยกเป็น `resolveIntent(text): Intent` ใน `line-webhook/intent.ts` → unit test ได้โดยไม่แตะ IO.
+
+#### 8.A.5 Service methods (reuse ได้กับ LIFF/F-8)
+| Method | ใช้ที่ | Logic |
+|---|---|---|
+| `BillsService.getMyOutstanding(memberId)` | bot MY_DEBT + LIFF My Bills (§8.B) | shares where `paymentStatus ∈ {PENDING,CLAIMED}` AND `bill.status != CLOSED` AND `bill.deletedAt == null`; คืนยอดรวม + รายการ (billId, name, amount, status, eventId?) |
+| `EventsService.listUpcoming()` | bot EVENTS | reuse query เดิมของ GET `/v1/events` (ACTIVE, eventDate ≥ today-1d) |
+| `LineService.sendReplyFlex(replyToken, altText, contents)` | webhook | POST `/v2/bot/message/reply` |
+| `LineService.sendReplyText(replyToken, text)` | webhook fallback | เหมือนกัน type text |
+
+#### 8.A.6 Folder Structure (เพิ่ม)
+```
+apps/api/src/modules/line-webhook/
+├── line-webhook.module.ts
+├── line-webhook.controller.ts     # POST /line/webhook
+├── line-webhook.service.ts        # handleEvent → route intent → reply
+├── intent.ts                      # resolveIntent() pure
+├── flex/                          # builders: debtFlex(), eventsFlex(), helpFlex()
+└── guards/line-signature.guard.ts # HMAC verify on raw body
+```
+ลงทะเบียนใน `app.module.ts` imports (เพิ่ม `LineWebhookModule`). `sendReplyFlex/Text` เพิ่มใน `auth/line.service.ts` (LineService ถูก export อยู่แล้วผ่าน AuthModule → import AuthModule ใน LineWebhookModule).
+
+#### 8.A.7 ⚠️ Raw Body (จุดพลาดบ่อย)
+NestJS parse JSON ทำให้ raw หาย → HMAC ไม่ตรง. แก้ใน `main.ts`:
+```ts
+const app = await NestFactory.create(AppModule, { rawBody: true });
+```
+แล้วใน guard อ่าน `req.rawBody` (Buffer). ต้องมั่นใจว่า raw body parser ครอบ route `/v1/line/webhook` (helmet/cors ไม่กระทบ). Verify:
+```ts
+crypto.createHmac('sha256', CHANNEL_SECRET).update(rawBody).digest('base64') === header['x-line-signature']
+```
+
+#### 8.A.8 Edge Cases (technical)
+| กรณี | Handling |
+|---|---|
+| replyToken หมดอายุ (Render cold start > timeout) | catch error จาก reply API, log, **ไม่ fallback push** (กันโควต้า) |
+| event ซ้ำ (LINE redelivery) | idempotent — เป็น read-only, reply ซ้ำได้ |
+| หลาย events/req | `Promise.allSettled(events.map(handleEvent))` |
+| member banned | reply ข้อความระงับ |
+| ไม่พบ member | reply ชวน register + ปุ่ม LIFF |
+
+---
+
+### 8.B — F-8/A-8: Standalone Bill (หารทั่วไป)
+
+#### 8.B.1 ER / Schema Change
+**1 จุดเดียวในตาราง:** `Bill.eventId` → nullable (Postgres: หลาย NULL ไม่ชน `@unique` → event เดียวยัง 1 บิล)
+
+```prisma
+model Bill {
+  eventId String? @unique @db.Uuid   // was: String @unique
+  event   Event?  @relation(fields: [eventId], references: [id])  // was: Event @relation(...)
+  // ... ฟิลด์อื่นคงเดิม
+}
+```
+Participants ของ standalone **ไม่ต้องมี table ใหม่** — สร้าง `BillShare` ตรงจาก `memberIds` ที่ admin เลือก (drinkChoice ไม่เกี่ยว).
+
+**Migration (non-breaking — ข้อมูลเดิมมี eventId ครบอยู่แล้ว):**
+```sql
+ALTER TABLE "Bill" ALTER COLUMN "eventId" DROP NOT NULL;
+-- unique index คงเดิม (partial-null ใช้ได้กับ Postgres)
+```
+
+#### 8.B.2 Cardinality (อัปเดต §1.1)
+- `Event 1—0..1 Bill` (event bill — เดิม)
+- `Bill 0..1—* BillShare` (standalone: bill มี shares โดยไม่มี event)
+
+#### 8.B.3 Shared Schema (`packages/shared/src/schemas.ts`)
+ปัจจุบัน: `createBillSchema = z.object({eventId, name, items}).and(billPaymentSchema)`
+
+เปลี่ยนเป็น (eventId optional + memberIds + XOR refine):
+```ts
+const createBillBase = z.object({
+  eventId: z.string().uuid().optional(),
+  memberIds: z.array(z.string().uuid()).min(1).optional(),   // standalone participants
+  name: z.string().trim().min(1).max(MAX_BILL_NAME_LENGTH),
+  items: z.array(billItemInputSchema).min(1, 'ต้องมีอย่างน้อย 1 รายการ'),
+}).superRefine((v, ctx) => {
+  const hasEvent = !!v.eventId;
+  const hasMembers = !!v.memberIds?.length;
+  if (hasEvent === hasMembers) {                              // XOR
+    ctx.addIssue({ code: 'custom', message: 'ระบุ eventId หรือ memberIds อย่างใดอย่างหนึ่ง' });
+  }
+  if (hasMembers) {
+    for (const it of v.items) {
+      if (['LIQUOR','BEER','MIXER'].includes(it.itemType)) {
+        ctx.addIssue({ code: 'custom', path:['items'],
+          message: 'โหมดหารทั่วไปรองรับเฉพาะ SHARED / CUSTOM' });
+      }
+    }
+  }
+});
+export const createBillSchema = createBillBase.and(billPaymentSchema);
+```
+
+#### 8.B.4 Service Refactor (`bills.service.ts`)
+`create(adminId, input)` — แยก participant source:
+```
+ถ้า input.eventId:   (path เดิม) event + submissions → attendees (มี drinkChoice)
+ถ้า input.memberIds: members = findMany(id in memberIds, banned=false)
+                     ถ้า count !== memberIds.length → 400 (มีคนถูก ban/ไม่พบ)
+                     attendees = members.map(id => ({memberId:id, drinkChoice:'NONE'}))
+                     bill สร้างโดย eventId: null
+validateItemMembers(items, participantIdSet)  // participantIdSet มาจากแหล่งที่เลือก
+calculateBill(items, attendees)               // pure fn เดิม รองรับอยู่แล้ว
+```
+`validateItemMembers` รับ `Set<string>` participant แทนการอ้าง event เสมอ (signature เดิมรับ set อยู่แล้ว — แค่ส่ง set ที่ถูกต้อง).
+
+#### 8.B.5 Ripple Points (จุดที่ต้องแก้ให้ event optional)
+| ไฟล์ | แก้ |
+|---|---|
+| `bills.service.listAdmin` | `b.event.name` → `b.event?.name ?? b.name`; eventDate → optional |
+| `bills.service.getAdminDetail` | `event` include → optional (`event?: {...} \| null`) |
+| `bill-push.service.ts` | `event` optional: altText/Flex ใช้ `bill.name`, deep link `/{bills}/${bill.id}` เมื่อไม่มี event; field date ซ่อนเมื่อ null |
+| `getMyBillForEvent(eventId,...)` | คงไว้ + เพิ่ม `getMyBillById(billId, memberId)` (standalone) |
+| `claimPaid(eventId,...)` | เพิ่ม overload by billId |
+| LIFF | route ใหม่ `/bills/[id]`; My Events/Profile รวม standalone via `getMyOutstanding` |
+
+#### 8.B.6 API Contracts (Phase 2)
+**Admin — สร้างบิล (endpoint เดิม, payload ขยาย):**
+`POST /v1/bills` · auth admin
+```json
+// standalone
+{ "memberIds": ["uuid1","uuid2"], "name": "ค่าข้าวเที่ยง",
+  "items": [{ "name":"หมูกระทะ","price":600,"itemType":"SHARED" },
+            { "name":"เบียร์โต๊ะ A","price":300,"itemType":"CUSTOM","customMemberIds":["uuid1"] }],
+  "paymentType": "PROMPTPAY", "promptpayId": "0812345678" }
+// event bill (เดิม) — ใช้ eventId เหมือนเดิม
+```
+Response: `201` bill + items + shares (เหมือนเดิม)
+
+**LIFF — ดูบิลของฉัน (standalone):**
+`GET /v1/bills/:id/my-bill` · auth line-jwt → คืน `MyBillDto` (เหมือน `/events/:id/my-bill` แต่ `event` = null)
+`POST /v1/bills/:id/my-bill/mark-paid` · auth line-jwt → claim by billId
+
+**LIFF/Bot — รายการบิลค้างของฉัน (ใหม่, ใช้ร่วม F-7):**
+`GET /v1/members/me/bills` · auth line-jwt
+```json
+{ "totalOutstanding": 850,
+  "bills": [
+    { "billId":"uuid","name":"ค่าข้าว","amount":300,"status":"SENT","paymentStatus":"PENDING","eventId":null },
+    { "billId":"uuid2","name":"งานปีใหม่","amount":550,"status":"SENT","paymentStatus":"CLAIMED","eventId":"e1" }
+  ] }
+```
+> bot F-7 (MY_DEBT) เรียก service เดียวกัน (`getMyOutstanding`) — ไม่ duplicate logic.
+
+**Admin — member picker:** ใช้ `GET /v1/members` เดิม (filter banned=false ฝั่ง UI)
+
+#### 8.B.7 Edge Cases (technical)
+| กรณี | Handling |
+|---|---|
+| memberIds มีคน banned/ลบ | 400 ก่อนสร้าง (count mismatch) |
+| ส่งทั้ง eventId + memberIds | 400 (XOR refine) |
+| itemType เหล้า/เบียร์/mixer ใน standalone | 400 (schema refine) |
+| CUSTOM เลือกคนนอก participant | 400 (`validateItemMembers`) |
+| member ถูกลบหลังสร้าง | share snapshot คงอยู่ (เหมือน event bill) |
+| ปัดเศษ | `Math.ceil` favors collector (เดิม) |
+
+---
+
+### 8.C — Indexing & Migration Notes
+- ใช้ index เดิมพอ: `BillShare @@index([memberId])` + `@@index([pushStatus])`, `Bill @@index([status])`. `getMyOutstanding` filter ด้วย memberId (indexed) แล้ว join bill.
+- Migration 1 ตัว: `eventId` nullable (non-breaking). ไม่มี backfill.
+- **Regression ต้องครอบ:** A-6 (create event bill), F-3/F-4, calc logic เดิม — ก่อน merge F-8.
+
+### 8.D — Implementation Order
+1. **F-7** (เพิ่มโมดูลใหม่ + `sendReplyFlex` + `getMyOutstanding` + rawBody) — ไม่แตะ schema
+2. **F-8** (migration nullable → shared schema → service refactor → push/list ripple → LIFF route)
+   *(`getMyOutstanding` จาก F-7 reuse ได้เลยใน F-8 My Bills)*
+
+---
+
+**End of SA Blueprint — v1.0 + Phase 2 addendum (2026-06-06)**

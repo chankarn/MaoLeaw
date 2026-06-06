@@ -34,6 +34,8 @@
 - Multi-tenant (รองรับกลุ่มเดียวก่อน)
 - Mobile native app
 - Push notification ไปยัง browser (ใช้ LINE Push แทน)
+- **Chat command bot (Reply)** — ดู §11 Phase 2 (F-7)
+- **โหมดหารบิลทั่วไป (standalone bill, ไม่ผูก event)** — ดู §11 Phase 2 (F-8 / A-8)
 
 ---
 
@@ -610,4 +612,161 @@ erDiagram
 
 ---
 
-**End of PRD v1.0**
+## 11. Phase 2 Features (Detailed)
+
+> **Status:** Approved for Phase 2 (added 2026-06-06). Phase 1 ต้อง stable ก่อนเริ่ม.
+> ทั้งสองฟีเจอร์ออกแบบให้ **อยู่ใน free tier ($0)** — ไม่แตะ OCR/storage/queue.
+
+### 11.1 Feature Overview & KPIs (Phase 2)
+
+| Feature | Problem | Value |
+|---|---|---|
+| **F-7: Chat Command Bot (Reply)** | User ต้องเปิด LIFF ทุกครั้งเพื่อเช็คยอดค้าง/งาน | พิมพ์ในแชต 1-on-1 แล้ว bot ตอบทันที ลดแรงเสียดทาน |
+| **F-8 / A-8: Standalone Bill (หารทั่วไป)** | บิลผูกกับ event เหล้าเสมอ → หารค่าข้าว/ทริปเร็วๆ ไม่ได้ | ขยาย use case ไปสู่การหารบิลทั่วไป (คู่แข่งขุนทอง) |
+
+**KPIs (Phase 2):**
+| Metric | Target |
+|---|---|
+| Bot reply latency (p95) | < 1.5s (ภายใน LINE reply token 30s window) |
+| LINE Push quota usage | คงอยู่ใน free 500/เดือน (bot ใช้ **reply** ไม่กินโควต้า) |
+| Standalone bill adoption | ≥ 30% ของบิลใหม่หลัง launch เป็นแบบ standalone |
+| Bot command success rate | ≥ 95% (ไม่ error / ตอบถูก intent) |
+
+**Out of Scope (Phase 2 — เลื่อนไป Phase 3):**
+- OCR สลิป / verify การจ่ายจริงด้วยรูป
+- บอทในแชตกลุ่ม (group chat) — Phase 2 ทำเฉพาะ **1-on-1** เท่านั้น
+- รับ/เก็บรูปสลิปผ่าน bot (ไม่มี storage)
+- หารบิลแบบ "ตามรายการ split ละเอียด" หรือยอดไม่เท่ากันต่อคนแบบ manual
+- ad-hoc participant (คนนอกกลุ่มที่ไม่ได้ register)
+
+---
+
+### 11.2 F-7: Chat Command Bot (1-on-1 Reply)
+
+**Actor:** Member (LIFF, registered — ผูกผ่าน `lineUserId`)
+**Channel:** LINE 1-on-1 chat กับ OA · **Message type:** Reply (ฟรี ไม่กินโควต้า 500/เดือน)
+
+#### Functional Workflow
+```
+User พิมพ์ข้อความใน 1-on-1 chat กับ OA
+  ↓
+LINE → POST /v1/line/webhook (มี X-Line-Signature)
+  ↓
+[Guard] verify signature (HMAC-SHA256 ด้วย LINE_CHANNEL_SECRET) บน raw body
+  ├─ ไม่ผ่าน → 401 (ทิ้ง event)
+  └─ ผ่าน → parse events[]
+       ↓
+       สำหรับ event type=message, message.type=text:
+         • หา Member by event.source.userId (lineUserId)
+         •   ไม่พบ → reply "ยังไม่ได้ลงทะเบียน" + ปุ่มเปิด LIFF Register
+         •   พบ → match intent จากข้อความ (normalize: trim/lowercase/ตัดช่องว่าง)
+       ↓
+       reply ด้วย replyToken (ภายใน 30 วินาที)
+```
+
+#### Command Intent Map (Phase 2 = คำสั่งข้อความเท่านั้น)
+| ผู้ใช้พิมพ์ (keyword, จับแบบ contains) | Intent | Bot Reply |
+|---|---|---|
+| `บิล`, `ค้าง`, `จ่าย`, `หนี้`, `bill` | **MY_DEBT** | Flex: ยอดค้างรวม ฿X จากทุกบิลที่ `paymentStatus ∈ {PENDING, CLAIMED}` และ bill ยัง `≠ CLOSED`/ไม่ถูกลบ + รายการบิลย่อย (ชื่อ + ยอด + ปุ่มเปิด LIFF) · ถ้าไม่มี → "ไม่มียอดค้าง 🎉" |
+| `งาน`, `อีเวนต์`, `event`, `นัด` | **EVENTS** | Flex: event `status=ACTIVE` ที่ `eventDate ≥ today-1d` (เรียงใกล้สุดก่อน) + ปุ่มเปิด LIFF แต่ละงาน · ถ้าไม่มี → "ยังไม่มีงานที่จะถึง" |
+| `เมนู`, `ช่วย`, `help`, `เริ่ม`, `hi`, อื่นๆ ที่ไม่ match | **HELP** | Flex เมนูช่วยเหลือ: อธิบายคำสั่ง (บิล / งาน) + ปุ่มเปิด LIFF หน้า Main |
+
+> หมายเหตุ: ภาพ/สติกเกอร์/ข้อความอื่นที่ไม่ใช่ text → reply HELP (ยังไม่มี OCR ใน Phase 2)
+
+#### Data Requirements
+- ไม่มี model ใหม่ — query จาก `Member` → `BillShare` → `Bill` (relation มีอยู่แล้ว)
+- **Env:** `LINE_CHANNEL_SECRET` (จำเป็นสำหรับ signature verify) — มีอยู่ใน `env.validation.ts` แล้ว ไม่ต้องเพิ่ม (ดู SA §8.A.1)
+
+#### Edge Cases & Exception Handling
+| กรณี | พฤติกรรม |
+|---|---|
+| Signature ไม่ผ่าน / ไม่มี header | ตอบ 401, log warn, ไม่ประมวลผล |
+| `replyToken` หมดอายุ (เกิน 30s — เช่น cold start ของ Render) | log error, ข้าม (ไม่ fallback เป็น push เพื่อไม่กินโควต้า) |
+| Member ถูก `banned=true` | reply "บัญชีถูกระงับ ติดต่อแอดมิน" |
+| lineUserId ไม่พบใน DB (guest) | reply ชวนลงทะเบียน + ปุ่ม LIFF |
+| LINE ส่ง event ซ้ำ (retry/redelivery) | reply ซ้ำได้ (idempotent อยู่แล้วเพราะเป็นการอ่าน) — ไม่เขียน DB |
+| Webhook verify ของ LINE Console (ping ว่างเปล่า) | ตอบ 200 ทันที ไม่มี events |
+| หลาย events ใน 1 request | loop ตอบทีละอัน (แต่ละ event มี replyToken ของตัวเอง) |
+
+#### Non-Functional
+- **Security:** signature verify บังคับ; ต้องอ่าน **raw body** (ตั้ง `rawBody:true` ใน `main.ts` — JSON parser ปกติจะทำให้ verify ไม่ผ่าน)
+- **Cost:** reply = ฟรีไม่จำกัด → ไม่กระทบโควต้า push 500/เดือน
+- **Perf:** ตอบภายใน 30s window; query ยอดค้างต้อง index `BillShare.memberId` + `paymentStatus` (มี `@@index([memberId])` แล้ว)
+
+---
+
+### 11.3 F-8 / A-8: Standalone Bill (โหมดหารบิลทั่วไป)
+
+**Decision (locked 2026-06-06):**
+- ผู้ร่วมบิล = **เฉพาะ member ที่ register แล้ว** (ไม่รองรับ ad-hoc name คนนอกกลุ่ม)
+- วิธีหาร = **หารเท่ากัน (SHARED)** + **เฉพาะคน (CUSTOM)** เท่านั้น — ไม่มี logic เหล้า/เบียร์/mixer (เพราะไม่ใช่งานเหล้า)
+- บิลไม่ผูก event (`eventId` optional)
+
+**Actor:** Admin (สร้าง/จัดการ), Member (ดู + claim paid)
+
+#### A-8: Admin Flow — สร้างบิลทั่วไป
+```
+Bills → [+ สร้างบิล] → เลือกโหมด:
+  ○ ผูกกับงาน (เดิม — F-3/A-6)
+  ● บิลทั่วไป (ไม่ผูกงาน)   ← ใหม่
+       ↓
+  ฟอร์มบิลทั่วไป:
+    • ชื่อบิล (required) เช่น "ค่าข้าวเที่ยง", "ทริปเขาใหญ่"
+    • เลือกผู้ร่วมบิล (multi-select จาก member ที่ register, banned=false) — required ≥ 1
+    • payment channel (PromptPay default จาก env / Bank) — เหมือนบิล event
+    • รายการ (items):
+        - type SHARED (หารทุกคนในบิล) | type CUSTOM (เลือกเฉพาะคนในผู้ร่วมบิล)
+        - (ไม่มี LIQUOR/BEER/MIXER ในโหมดนี้)
+    • Live preview ยอดต่อคน (reuse calculateBill)
+       ↓
+  [สร้าง] → DRAFT → [ส่ง] push Flex หาผู้ร่วมบิล → SENT → [ปิดบิล] CLOSED
+```
+
+#### F-8: Member view (LIFF)
+- หน้าใหม่ `/bills/[id]` (standalone) — โครงเดียวกับ `/events/[id]/bill` แต่ไม่มีข้อมูล event
+- Tab "My Events" / Profile debt summary ต้องรวม standalone bills ที่ user มี share ด้วย
+- Claim paid ("ฉันโอนแล้ว") ใช้ได้เหมือนกัน (by billId)
+
+#### Data Dictionary Delta
+| Model | เปลี่ยนแปลง |
+|---|---|
+| `Bill.eventId` | `String @unique` → **`String? @unique`** (Postgres ยอมหลาย NULL → event เดียวยัง 1 บิล) |
+| `Bill.event` | relation → optional |
+| `BillItem.itemType` | ใน standalone ใช้ได้เฉพาะ `SHARED` \| `CUSTOM` (validate ที่ service) |
+| `CreateBillInput` (shared) | `eventId` optional + เพิ่ม `memberIds?: string[]`; rule: **ต้องมี `eventId` หรือ `memberIds` อย่างใดอย่างหนึ่ง** |
+
+> ไม่ต้องเพิ่ม model ใหม่ — participants ของ standalone เก็บผ่าน `BillShare` ที่สร้างตรงจาก `memberIds`
+
+#### Affected Code (ripple — สำหรับ SA/Dev)
+- `bills.service.create()` — แยก path: ถ้า `memberIds` → ไม่ require event, attendees = memberIds (drinkChoice=NONE)
+- `validateItemMembers()` — validate กับ participant set ที่ส่งเข้ามา (ไม่ใช่ event submissions เสมอ); ห้าม itemType ที่เป็น LIQUOR/BEER/MIXER ในโหมด standalone
+- `bill-push.service.ts` — `event` optional → fallback `bill.name`, deep link `/bills/{id}` เมื่อไม่มี event
+- `getMyBillForEvent` → เพิ่ม `getMyBillById(billId, memberId)`
+- `claimPaid(eventId,...)` → เพิ่ม variant by billId
+- `listAdmin` / `getAdminDetail` — `event` optional (`b.event?.name ?? b.name`)
+- LIFF: route `/bills/[id]` + My Bills รวม standalone
+
+#### Edge Cases & Exception Handling
+| กรณี | พฤติกรรม |
+|---|---|
+| สร้าง standalone โดยไม่เลือกผู้ร่วมบิล | 400 "ต้องเลือกผู้ร่วมบิลอย่างน้อย 1 คน" |
+| CUSTOM item เลือกคนนอก participant list | 400 (validate เหมือน event bill) |
+| ส่ง itemType LIQUOR/BEER/MIXER ในโหมด standalone | 400 "โหมดหารทั่วไปรองรับเฉพาะหารทุกคน/เฉพาะคน" |
+| member ถูกลบ/ban หลังสร้างบิล | share คงอยู่ (snapshot ยอด) — เหมือนพฤติกรรมเดิม |
+| ส่งทั้ง `eventId` และ `memberIds` | 400 "ระบุได้อย่างใดอย่างหนึ่ง" |
+| ปัดเศษ | ใช้ `Math.ceil` favors collector เหมือน Phase 1 |
+
+#### Non-Functional
+- **Cost:** $0 — ไม่มี dependency ใหม่; push ตอนสร้างบิลใช้โควต้าเดิม (ยอมรับได้ตามที่ตกลง)
+- **Backward compatibility:** บิลแบบ event ต้องทำงานเหมือนเดิม 100% → regression test ครอบ A-6 / F-3 / calc logic เดิม
+- **Migration:** เปลี่ยน `eventId` เป็น nullable เป็น non-breaking (ข้อมูลเดิมมีค่าอยู่แล้ว)
+
+---
+
+### 11.4 Phase 2 — Implementation Order (แนะนำ)
+1. **F-7 Chat Command Bot** ก่อน — เสี่ยงต่ำ (เพิ่มโมดูลใหม่ล้วน ไม่แตะของเดิม), เห็นผลเร็ว, $0
+2. **F-8 Standalone Bill** ตามมา — งานใหญ่ แตะ schema + bills.service หลายจุด, ต้องมี regression test คุ้มบิลแบบ event เดิม
+
+---
+
+**End of PRD — v1.0 (Phase 1) + Phase 2 addendum (2026-06-06)**
