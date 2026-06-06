@@ -1503,4 +1503,398 @@ export const MOCK_PAYMENT_BANK = {
 
 ---
 
-**End of UX/UI Design v1.0**
+## 12. Phase 2 Screens (PRD §11 / SA §8)
+
+> Added 2026-06-06. **Design system ไม่เปลี่ยน** — reuse tokens เดิม (Whiskey Amber, IBM Plex Sans Thai, shadcn/ui).
+> 3 surfaces ใหม่: **(A) Bot Flex messages** · **(B) Admin standalone bill** · **(C) LIFF standalone bill + My Bills**.
+> ไม่ต้องติดตั้ง shadcn component ใหม่ — ใช้ของใน §10 ทั้งหมด.
+
+### 12.A — F-7 Bot Flex Messages (LINE 1-on-1)
+
+ใช้สี/โครงเดียวกับ `bill-push.service.ts` `buildFlex()` เดิม (header `#292524`, amount `#D97706`, muted `#78716C`) → bot กับ push ดูเป็นแบรนด์เดียวกัน.
+
+**Builder file:** `apps/api/src/modules/line-webhook/flex/` — pure functions คืน Flex JSON.
+
+#### 12.A.1 `debtFlex()` — ตอบ "บิล / ค้าง"
+ASCII:
+```
+┌────────────────────────────┐
+│ 💸 ยอดค้างของคุณ            │  ← header stone-800, ขาว
+├────────────────────────────┤
+│ รวมทั้งหมด        ฿850     │  ← amount amber-600 size xl
+│ ────────────────────────── │
+│ ค่าข้าวเที่ยง               │
+│ PENDING            ฿300 ›  │  ← badge warning
+│ ────────────────────────── │
+│ งานปีใหม่                   │
+│ รอตรวจสอบ          ฿550 ›  │  ← badge info (CLAIMED)
+├────────────────────────────┤
+│ [   เปิดดูทั้งหมดใน LIFF   ] │  ← primary amber-600
+└────────────────────────────┘
+```
+```ts
+// flex/debt.flex.ts
+import type { OutstandingBill } from './types';
+
+const STATUS_LABEL: Record<string, { text: string; color: string }> = {
+  PENDING: { text: 'ยังไม่จ่าย', color: '#F59E0B' }, // warning
+  CLAIMED: { text: 'รอตรวจสอบ', color: '#0EA5E9' }, // info
+};
+
+export function debtFlex(opts: {
+  total: number;
+  bills: OutstandingBill[];
+  liffUrl: string;
+}) {
+  const rows = opts.bills.flatMap((b, i) => {
+    const st = STATUS_LABEL[b.paymentStatus] ?? STATUS_LABEL.PENDING;
+    const sep = i === 0 ? [] : [{ type: 'separator', margin: 'md' }];
+    return [
+      ...sep,
+      {
+        type: 'box',
+        layout: 'vertical',
+        margin: 'md',
+        action: { type: 'uri', uri: b.deepLink },
+        contents: [
+          { type: 'text', text: b.name, size: 'sm', weight: 'bold', color: '#1C1917', wrap: true },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              { type: 'text', text: st.text, size: 'xs', color: st.color },
+              { type: 'text', text: `฿${b.amount.toLocaleString('th-TH')} ›`, size: 'sm', weight: 'bold', align: 'end', color: '#1C1917' },
+            ],
+          },
+        ],
+      },
+    ];
+  });
+
+  return {
+    type: 'bubble',
+    header: {
+      type: 'box', layout: 'vertical', backgroundColor: '#292524',
+      contents: [{ type: 'text', text: '💸 ยอดค้างของคุณ', weight: 'bold', size: 'lg', color: '#FFFFFF' }],
+    },
+    body: {
+      type: 'box', layout: 'vertical', spacing: 'sm',
+      contents: [
+        {
+          type: 'box', layout: 'horizontal',
+          contents: [
+            { type: 'text', text: 'รวมทั้งหมด', size: 'sm', color: '#78716C' },
+            { type: 'text', text: `฿${opts.total.toLocaleString('th-TH')}`, size: 'xl', weight: 'bold', align: 'end', color: '#D97706' },
+          ],
+        },
+        { type: 'separator', margin: 'md' },
+        ...rows,
+      ],
+    },
+    footer: {
+      type: 'box', layout: 'vertical',
+      contents: [{ type: 'button', style: 'primary', color: '#D97706',
+        action: { type: 'uri', label: 'เปิดดูทั้งหมดใน LIFF', uri: opts.liffUrl } }],
+    },
+  };
+}
+```
+**Empty state (ไม่มียอดค้าง):** ตอบ Flex สั้นหรือ text — `"ไม่มียอดค้าง 🎉 สบายตัวไป~"` + ปุ่มเปิด LIFF.
+
+#### 12.A.2 `eventsFlex()` — ตอบ "งาน"
+แต่ละงาน = row (ชื่อ + วันที่ stone-500 + ปุ่ม/ลูกศร) tap เปิด LIFF event. ไม่มีงาน → text `"ยังไม่มีงานที่จะถึง 🍻"`.
+
+#### 12.A.3 `helpFlex()` — default / "เมนู"
+```
+┌────────────────────────────┐
+│ 🍻 MaoLeaw ช่วยอะไรได้บ้าง  │
+├────────────────────────────┤
+│ พิมพ์ "บิล"  → ดูยอดค้าง    │
+│ พิมพ์ "งาน"  → งานที่จะถึง  │
+├────────────────────────────┤
+│ [        เปิดแอป          ] │
+└────────────────────────────┘
+```
+
+> **A11y/altText:** ทุก Flex ต้องตั้ง `altText` สื่อความหมาย (เช่น `ยอดค้าง ฿850`) เพื่อ screen reader + preview ในแชต.
+
+---
+
+### 12.B — A-8 Admin: Standalone Bill (extend `BillForm`)
+
+extend `bill-form.tsx` เดิม (ไม่สร้างใหม่). เพิ่ม 2 ส่วน: **(1) Mode toggle** ด้านบน · **(2) Member picker** แทนที่ event dropdown เมื่อโหมด standalone.
+
+#### 12.B.1 Layout
+```
+┌──────────────────────────── Bill Create ────────────────────────────┐
+│  ◉ ผูกกับงาน      ○ บิลทั่วไป (ไม่ผูกงาน)        ← segmented toggle  │
+│                                                                       │
+│  [ โหมดผูกงาน ]                  [ โหมดบิลทั่วไป ]                    │
+│  เลือกงาน: [ Select ▾ ]          ชื่อบิล: [____________]              │
+│                                  ผู้ร่วมบิล: ┌─────────────────────┐ │
+│                                            │ [x] กบ  [x] ตูน  + 3 │ │
+│                                            │ [ + เลือกสมาชิก ]     │ │
+│                                            └─────────────────────┘ │
+│  ── รายการ (Items repeater) ──                                       │
+│  ประเภท: [หารทุกคน ▾]  (standalone: เฉพาะ หารทุกคน / เลือกเอง)       │
+│  ...live preview ยอดต่อคน (เดิม)...                                  │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+#### 12.B.2 Mode Toggle + Member Picker (React + Tailwind, ใช้ token เดิม)
+```tsx
+// components/bill-mode-toggle.tsx
+import { cn } from '@/lib/utils';
+
+type Mode = 'event' | 'standalone';
+
+export function BillModeToggle({ value, onChange, disabled }: {
+  value: Mode; onChange: (m: Mode) => void; disabled?: boolean;
+}) {
+  const opts: { id: Mode; label: string; hint: string }[] = [
+    { id: 'event', label: 'ผูกกับงาน', hint: 'หารตามคนเข้าร่วม + กติกาเหล้า' },
+    { id: 'standalone', label: 'บิลทั่วไป', hint: 'เลือกคนเอง · หารเท่ากัน/เฉพาะคน' },
+  ];
+  return (
+    <div className="inline-flex rounded-lg border border-stone-200 bg-stone-50 p-1" role="tablist">
+      {opts.map((o) => (
+        <button
+          key={o.id} type="button" role="tab" aria-selected={value === o.id}
+          disabled={disabled} onClick={() => onChange(o.id)}
+          className={cn(
+            'rounded-md px-4 py-2 text-sm font-medium transition',
+            value === o.id ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700',
+            disabled && 'cursor-not-allowed opacity-50',
+          )}
+        >
+          <span className="block">{o.label}</span>
+          <span className="mt-0.5 block text-[11px] font-normal text-stone-400">{o.hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+```tsx
+// components/member-picker.tsx — multi-select (registered, banned=false)
+import { useState } from 'react';
+import { Check, Plus, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+
+interface M { id: string; name: string; pictureUrl?: string | null }
+
+export function MemberPicker({ members, selected, onChange }: {
+  members: M[]; selected: string[]; onChange: (ids: string[]) => void;
+}) {
+  const [q, setQ] = useState('');
+  const sel = new Set(selected);
+  const filtered = members.filter((m) => m.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const chips = members.filter((m) => sel.has(m.id));
+
+  function toggle(id: string) {
+    const next = new Set(sel);
+    next.has(id) ? next.delete(id) : next.add(id);
+    onChange([...next]);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {chips.length === 0 && <span className="text-sm text-stone-400">ยังไม่ได้เลือกสมาชิก</span>}
+        {chips.map((m) => (
+          <span key={m.id} className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+            {m.name}
+            <button type="button" onClick={() => toggle(m.id)} aria-label={`ลบ ${m.name}`}>
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="gap-1">
+            <Plus className="h-4 w-4" /> เลือกสมาชิก ({selected.length})
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>เลือกผู้ร่วมบิล</DialogTitle></DialogHeader>
+          <Input placeholder="ค้นหาชื่อ…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-2" />
+          <ul className="max-h-72 space-y-1 overflow-y-auto">
+            {filtered.map((m) => {
+              const on = sel.has(m.id);
+              return (
+                <li key={m.id}>
+                  <button type="button" onClick={() => toggle(m.id)}
+                    className={cn('flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-stone-50',
+                      on && 'bg-amber-50')}>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={m.pictureUrl ?? undefined} />
+                      <AvatarFallback>{m.name.slice(0, 1)}</AvatarFallback>
+                    </Avatar>
+                    <span className="flex-1 text-stone-900">{m.name}</span>
+                    {on && <Check className="h-4 w-4 text-amber-600" />}
+                  </button>
+                </li>
+              );
+            })}
+            {filtered.length === 0 && <li className="py-6 text-center text-sm text-stone-400">ไม่พบสมาชิก</li>}
+          </ul>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+```
+**Item type select (standalone):** filter ให้เหลือ `SHARED` ("หารทุกคน") + `CUSTOM` ("เลือกเอง") เท่านั้น — ซ่อน LIQUOR/BEER/MIXER. CUSTOM picker เลือกได้เฉพาะคนใน `memberIds` ที่เลือกไว้.
+
+**System states:**
+- Validation: ปุ่ม "สร้างบิล" disabled จนกว่า (มีชื่อ + เลือก ≥1 คน + ≥1 รายการ). Toast error ถ้า BE คืน 400 (เช่น "ระบุได้อย่างใดอย่างหนึ่ง").
+- Empty members: ถ้าไม่มีสมาชิกในระบบ → ใน dialog แสดง empty state + ลิงก์ไปหน้า Members.
+
+---
+
+### 12.C — F-8 LIFF: Standalone Bill + My Bills
+
+#### 12.C.1 Standalone Bill View `/bills/[id]`
+reuse component บิลเดิม (`§4.4`) แต่ **header ต่าง**: ไม่มี event card → ใช้ชื่อบิล + ไอคอนใบเสร็จแทน วันที่/ร้าน.
+```
+┌─────────────────────────────┐
+│  🧾 ค่าข้าวเที่ยง            │  ← bill name (ไม่มี event date/venue)
+│  ยอดของคุณ                   │
+│        ฿300                  │  ← amber-600, mono, ขนาดใหญ่
+│  [QR PromptPay / Bank card]  │  ← reuse เดิมทั้งหมด
+│  [ ฉันโอนแล้ว 📸 ]           │  ← claim by billId
+└─────────────────────────────┘
+```
+
+#### 12.C.2 My Bills (รวมใน Tab "My Events" → เปลี่ยนชื่อเป็น "ของฉัน")
+list การ์ดยอดค้าง รวมทั้ง event bills และ standalone — ใช้ `GET /v1/members/me/bills`.
+```tsx
+// app/my-bills/page.tsx (หรือ section ใน my-events)
+'use client';
+import Link from 'next/link';
+import { ChevronRight, ReceiptText, CalendarDays } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/empty-state';
+import { ErrorState } from '@/components/error-state';
+import { useMyBills } from '@/hooks/use-bills';
+import { formatBaht } from '@/lib/utils';
+
+const STATUS: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: 'ยังไม่จ่าย', cls: 'bg-amber-100 text-amber-800' },
+  CLAIMED: { label: 'รอตรวจสอบ', cls: 'bg-sky-100 text-sky-800' },
+};
+
+export default function MyBillsPage() {
+  const { data, isLoading, isError, refetch } = useMyBills();
+
+  if (isLoading) return <BillsSkeleton />;
+  if (isError) return <ErrorState onRetry={refetch} />;
+  if (!data || data.bills.length === 0)
+    return <EmptyState icon={ReceiptText} title="ไม่มียอดค้าง" desc="จ่ายครบทุกบิลแล้ว 🎉" />;
+
+  return (
+    <main className="mx-auto max-w-[480px] px-4 pb-24 pt-4">
+      <Card className="mb-4 bg-stone-800 p-4 text-white">
+        <p className="text-sm text-stone-300">ยอดค้างจ่ายรวม</p>
+        <p className="font-mono text-3xl font-bold text-amber-500">{formatBaht(data.totalOutstanding)}</p>
+      </Card>
+      <ul className="space-y-2">
+        {data.bills.map((b) => {
+          const st = STATUS[b.paymentStatus] ?? STATUS.PENDING;
+          const href = b.eventId ? `/events/${b.eventId}/bill` : `/bills/${b.billId}`;
+          return (
+            <li key={b.billId}>
+              <Link href={href}>
+                <Card className="flex items-center gap-3 p-3 transition active:scale-[0.99]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-stone-500">
+                    {b.eventId ? <CalendarDays className="h-5 w-5" /> : <ReceiptText className="h-5 w-5" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-stone-900">{b.name}</p>
+                    <Badge className={st.cls}>{st.label}</Badge>
+                  </div>
+                  <span className="font-mono font-bold text-stone-900">{formatBaht(b.amount)}</span>
+                  <ChevronRight className="h-4 w-4 text-stone-300" />
+                </Card>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </main>
+  );
+}
+
+function BillsSkeleton() {
+  return (
+    <main className="mx-auto max-w-[480px] space-y-2 px-4 pt-4">
+      <div className="mb-4 h-20 animate-pulse rounded-xl bg-stone-200" />
+      {[0, 1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-stone-200" />)}
+    </main>
+  );
+}
+```
+**System states:** Loading skeleton (บน), Empty (`ไม่มียอดค้าง 🎉`), Error (`ErrorState` retry) — ใช้ pattern §6 เดิม.
+
+---
+
+### 12.D — Mock Data (Phase 2)
+```ts
+// my bills response
+{ totalOutstanding: 850, bills: [
+  { billId: 'b1', name: 'ค่าข้าวเที่ยง', amount: 300, status: 'SENT', paymentStatus: 'PENDING', eventId: null },
+  { billId: 'b2', name: 'งานปีใหม่ 2026', amount: 550, status: 'SENT', paymentStatus: 'CLAIMED', eventId: 'e1' },
+]}
+// member picker
+[{ id:'m1', name:'กบ', pictureUrl:null }, { id:'m2', name:'ตูน', pictureUrl:null }, { id:'m3', name:'เอ็ม' }]
+```
+
+### 12.E — A11y Checklist (เพิ่มเติม Phase 2)
+- Mode toggle: `role="tablist"` + `aria-selected` ✓
+- Member chips: ปุ่มลบมี `aria-label` ✓
+- Flex messages: `altText` สื่อความหมายทุกอัน ✓
+- Touch target ≥ 44px (Fitts) สำหรับ row ใน My Bills + member list ✓
+
+---
+
+### 12.F — Accessibility Rules (audit 2026-06-06, via ui-ux-pro-max)
+
+Binding rules สำหรับ `/dev` — แก้ปัญหา contrast/touch ที่เจอตอน audit:
+
+**สี (contrast WCAG AA):**
+| ใช้กับ | บนพื้นขาว/อ่อน | บนพื้นเข้ม (stone-800/900) |
+|---|---|---|
+| **ยอดเงินใหญ่** (≥18px bold, large text) | `text-amber-700` `#B45309` (≈4.0:1 ✓) | `text-amber-500` ✓ |
+| **ข้อความ/ลิงก์/ไอคอนเล็ก** (<18px, normal text) | `text-amber-800` `#92400E` (≈5.9:1 ✓) | `text-amber-400/300` |
+| **muted/caption** | `text-stone-500` (≈4.6:1 ✓) | `text-stone-400` |
+
+> ❌ ห้ามใช้ `text-amber-600` (#D97706 ≈2.9:1), `text-amber-500`, `text-sky-500`, `emerald-500` เป็น **ตัวอักษรบนพื้นขาว** — fail 4.5:1. amber-600 ใช้ได้เฉพาะ **fill** (`bg-amber-600` + ข้อความขาว) และ focus ring.
+
+**สถานะ (payment status) — ใช้ badge มี bg เสมอ ไม่ใช่ตัวอักษรสีล้วน:**
+- PENDING → `bg-amber-100 text-amber-800`
+- CLAIMED → `bg-sky-100 text-sky-800`
+- PAID → `bg-emerald-100 text-emerald-800`
+- (มี bg = ผ่าน contrast + เป็น `color-not-only` เพราะมีข้อความกำกับ)
+
+**Touch & motion:**
+- ทุก interactive element (chips, tab, ปุ่มลบ ✕) ≥ **44×44px** (`min-h-[44px]` หรือ hitSlop)
+- ปุ่ม icon-only ต้องมี **`aria-label`** (เช่น ปุ่มลบ chip)
+- เคารพ **`prefers-reduced-motion`** — ปิด animation/transition เมื่อ user ตั้งค่า
+- focus ring มองเห็นได้ 2–4px (`#D97706`) — shadcn จัดให้แล้ว อย่า override ทิ้ง
+
+**Icon:**
+- Component จริง (LIFF/Admin) ใช้ **Lucide/SVG เท่านั้น** ตาม §10 — **ห้าม emoji เป็น icon โครงสร้าง** (nav/สถานะ)
+- ข้อยกเว้น: **LINE Bot Flex** ใช้ emoji ได้ (LINE รองรับ SVG จำกัด) แต่ต้องคู่กับข้อความเสมอ
+- drink mapping (🥃เหล้า/🍺เบียร์) ในดีไซน์ = ใช้ Lucide ไอคอน + สี token แทน emoji ในของจริง
+
+> mockup ใน `docs/mockups/` เป็น throwaway — ใช้ emoji ได้ แต่ contrast/touch แก้ตามข้างบนแล้ว (ทั้ง phase2.html + phase2-prototype.html)
+
+---
+
+**End of UX/UI Design — v1.0 + Phase 2 addendum (2026-06-06)**
