@@ -69,6 +69,12 @@ export async function getLiffProfile() {
   return liff.getProfile();
 }
 
+/** True when running inside the LINE in-app browser (WebView), false on a normal browser. */
+export async function isInLineClient(): Promise<boolean> {
+  const liff = await initLiff();
+  return liff.isInClient();
+}
+
 export async function getIdToken(): Promise<string> {
   const liff = await initLiff();
   const idToken = liff.getIDToken();

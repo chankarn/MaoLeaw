@@ -85,6 +85,12 @@ export interface MyBillDto {
     claimedAt: string | null;
     claimNote: string | null;
   };
+  /** Per-item breakdown of this member's share, grouped by display bucket. */
+  lineItems: {
+    name: string;
+    bucket: 'shared' | 'drink' | 'mixer';
+    amount: number;
+  }[];
   payment:
     | {
         type: 'PROMPTPAY';
