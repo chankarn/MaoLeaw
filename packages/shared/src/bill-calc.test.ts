@@ -1,6 +1,12 @@
 // File: packages/shared/src/bill-calc.test.ts
 import { describe, expect, it } from 'vitest';
-import { calculateBill, sumItemPrices, type CalcAttendee, type CalcItem } from './bill-calc';
+import {
+  calculateBill,
+  calculateMemberItemLines,
+  sumItemPrices,
+  type CalcAttendee,
+  type CalcItem,
+} from './bill-calc';
 
 const attendees: CalcAttendee[] = [
   { memberId: 'm1', drinkChoice: 'LIQUOR' },
@@ -177,6 +183,66 @@ describe('calculateBill', () => {
     expect(m2.amount).toBe(300 + 350 + 45);
     expect(m3.amount).toBe(300 + 360 + 45);
     expect(m4.amount).toBe(300 + 45);
+  });
+});
+
+describe('calculateMemberItemLines', () => {
+  const items: CalcItem[] = [
+    item({ id: 'food', price: 400, itemType: 'SHARED' }),
+    item({ id: 'liquor', price: 600, itemType: 'LIQUOR' }),
+    item({ id: 'beer', price: 200, itemType: 'BEER' }),
+    item({ id: 'mixer', price: 120, itemType: 'MIXER' }),
+  ];
+
+  it('lists only items the member pays into', () => {
+    // m3 = BEER drinker → SHARED (all) + BEER + MIXER, NOT liquor.
+    const lines = calculateMemberItemLines(items, attendees, 'm3');
+    const ids = lines.map((l) => l.itemId).sort();
+    expect(ids).toEqual(['beer', 'food', 'mixer']);
+  });
+
+  it('each line is the member share = ceil(price / eligible)', () => {
+    const lines = calculateMemberItemLines(items, attendees, 'm3');
+    expect(lines.find((l) => l.itemId === 'food')?.amount).toBe(100); // 400/4
+    expect(lines.find((l) => l.itemId === 'beer')?.amount).toBe(200); // 200/1
+    expect(lines.find((l) => l.itemId === 'mixer')?.amount).toBe(40); // 120/3
+  });
+
+  it('tags each line with its display bucket', () => {
+    const lines = calculateMemberItemLines(items, attendees, 'm1'); // LIQUOR drinker
+    expect(lines.find((l) => l.itemId === 'food')?.bucket).toBe('shared');
+    expect(lines.find((l) => l.itemId === 'liquor')?.bucket).toBe('drink');
+    expect(lines.find((l) => l.itemId === 'mixer')?.bucket).toBe('mixer');
+  });
+
+  it('CUSTOM items land in the shared bucket and only for chosen members', () => {
+    const custom = [item({ id: 'c1', price: 90, itemType: 'CUSTOM', customMemberIds: ['m2'] })];
+    expect(calculateMemberItemLines(custom, attendees, 'm2')).toEqual([
+      { itemId: 'c1', bucket: 'shared', amount: 90 },
+    ]);
+    expect(calculateMemberItemLines(custom, attendees, 'm1')).toEqual([]);
+  });
+
+  it('line amounts sum exactly to the member bucket totals from calculateBill', () => {
+    const { shares } = calculateBill(items, attendees);
+    for (const a of attendees) {
+      const lines = calculateMemberItemLines(items, attendees, a.memberId);
+      const share = shares.find((s) => s.memberId === a.memberId)!;
+      const sum = (b: string) =>
+        lines.filter((l) => l.bucket === b).reduce((t, l) => t + l.amount, 0);
+      expect(sum('shared')).toBe(share.sharedAmount);
+      expect(sum('drink')).toBe(share.drinkAmount);
+      expect(sum('mixer')).toBe(share.mixerAmount);
+    }
+  });
+
+  it('skips zero-price items', () => {
+    const lines = calculateMemberItemLines(
+      [item({ id: 'free', price: 0, itemType: 'SHARED' })],
+      attendees,
+      'm1',
+    );
+    expect(lines).toEqual([]);
   });
 });
 

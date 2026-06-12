@@ -23,6 +23,9 @@ export default function MyBillPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [claimOpen, setClaimOpen] = useState(false);
   const [note, setNote] = useState('');
+  // Fallback preview: full-size QR the user can long-press to save when the
+  // WebView blocks programmatic downloads / file sharing.
+  const [qrPreview, setQrPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data || !canvasRef.current) return;
@@ -41,7 +44,7 @@ export default function MyBillPage() {
     return <ErrorState onRetry={refetch} />;
   }
 
-  const { bill, myShare, payment } = data;
+  const { bill, myShare, payment, lineItems } = data;
   const isPaid = myShare.paymentStatus === 'PAID';
   const isClaimed = myShare.paymentStatus === 'CLAIMED';
 
@@ -56,14 +59,30 @@ export default function MyBillPage() {
     }
   }
 
-  function downloadQr() {
+  async function downloadQr() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const url = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `maoleaw-qr-${id}.png`;
-    a.click();
+
+    // 1) Try the native share sheet with the actual PNG file. Inside the LINE
+    //    in-app browser this is the only reliable "save to Photos" path —
+    //    the <a download> trick is ignored by the iOS/Android WebView.
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/png'),
+    );
+    if (blob) {
+      const file = new File([blob], `maoleaw-qr-${id}.png`, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: bill.name });
+          return;
+        } catch {
+          /* user cancelled — fall through to preview */
+        }
+      }
+    }
+
+    // 2) Fallback: show the QR full-size so the user can long-press → save.
+    setQrPreview(canvas.toDataURL('image/png'));
   }
 
   async function copyText(text: string) {
@@ -173,17 +192,26 @@ export default function MyBillPage() {
               <div className="absolute -right-9 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-amber-50" />
             </div>
 
-            {/* Breakdown */}
-            <div className="space-y-2.5 text-sm">
-              <BreakRow
+            {/* Breakdown — each bucket lists the items this member pays into */}
+            <div className="space-y-3.5 text-sm">
+              <BreakGroup
                 icon="🍽️"
                 label="ค่าอาหาร / หารทุกคน"
-                value={myShare.sharedAmount}
+                total={myShare.sharedAmount}
+                items={lineItems.filter((l) => l.bucket === 'shared')}
               />
-              <BreakRow icon="🍻" label="ค่าเครื่องดื่ม" value={myShare.drinkAmount} />
-              {myShare.mixerAmount > 0 && (
-                <BreakRow icon="🧊" label="ค่ามิกเซอร์" value={myShare.mixerAmount} />
-              )}
+              <BreakGroup
+                icon="🍻"
+                label="ค่าเครื่องดื่ม"
+                total={myShare.drinkAmount}
+                items={lineItems.filter((l) => l.bucket === 'drink')}
+              />
+              <BreakGroup
+                icon="🧊"
+                label="ค่ามิกเซอร์"
+                total={myShare.mixerAmount}
+                items={lineItems.filter((l) => l.bucket === 'mixer')}
+              />
               <div className="flex items-center justify-between border-t border-stone-200 pt-2.5">
                 <span className="font-semibold">รวมทั้งหมด</span>
                 <span className="font-mono text-lg font-bold tabular-nums text-primary">
@@ -287,6 +315,33 @@ export default function MyBillPage() {
         </Button>
       </div>
 
+      {/* QR save fallback — long-press to save when sharing isn't available */}
+      <Dialog open={!!qrPreview} onOpenChange={(open) => !open && setQrPreview(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>บันทึก QR</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-center">
+            <p className="text-sm text-muted-foreground">
+              กดค้างที่รูป แล้วเลือก “บันทึกรูปภาพ” เพื่อเซฟลงเครื่อง
+            </p>
+            {qrPreview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrPreview}
+                alt="PromptPay QR"
+                className="mx-auto h-64 w-64 rounded-xl border border-stone-200"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQrPreview(null)}>
+              ปิด
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Claim Dialog */}
       <Dialog open={claimOpen} onOpenChange={setClaimOpen}>
         <DialogContent>
@@ -334,14 +389,37 @@ export default function MyBillPage() {
   );
 }
 
-function BreakRow({ icon, label, value }: { icon: string; label: string; value: number }) {
+function BreakGroup({
+  icon,
+  label,
+  total,
+  items,
+}: {
+  icon: string;
+  label: string;
+  total: number;
+  items: MyBillDto['lineItems'];
+}) {
+  if (total <= 0) return null;
   return (
-    <div className="flex items-center justify-between">
-      <span className="flex items-center gap-2 text-muted-foreground">
-        <span className="text-base">{icon}</span>
-        {label}
-      </span>
-      <span className="font-mono tabular-nums">{formatBaht(value)}</span>
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2 font-medium text-stone-700">
+          <span className="text-base">{icon}</span>
+          {label}
+        </span>
+        <span className="font-mono tabular-nums font-medium">{formatBaht(total)}</span>
+      </div>
+      {items.length > 0 && (
+        <ul className="mt-1.5 space-y-1 pl-7 text-xs text-muted-foreground">
+          {items.map((it, i) => (
+            <li key={i} className="flex items-center justify-between gap-3">
+              <span className="truncate">{it.name}</span>
+              <span className="shrink-0 font-mono tabular-nums">{formatBaht(it.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

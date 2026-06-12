@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { prisma } from '@maoleaw/db';
 import {
   calculateBill,
+  calculateMemberItemLines,
   sumItemPrices,
   type BankCode,
   type CalcAttendee,
@@ -377,6 +378,10 @@ export class BillsService {
   async getMyBillForEvent(eventId: string, memberId: string): Promise<MyBillDto> {
     const bill = await prisma.bill.findFirst({
       where: { eventId, deletedAt: null },
+      include: {
+        items: { orderBy: { sortOrder: 'asc' } },
+        event: { include: { submissions: true } },
+      },
     });
     if (!bill) throw new NotFoundException('No bill for this event');
 
@@ -384,6 +389,29 @@ export class BillsService {
       where: { billId_memberId: { billId: bill.id, memberId } },
     });
     if (!share) throw new NotFoundException('You are not part of this bill');
+
+    // Per-item breakdown of this member's share. Reuses the canonical calc rules,
+    // so the lines reconcile exactly to share.{sharedAmount,drinkAmount,mixerAmount}.
+    const attendees: CalcAttendee[] = bill.event.submissions.map((s) => ({
+      memberId: s.memberId,
+      drinkChoice: s.drinkChoice,
+    }));
+    const itemNameById = new Map(bill.items.map((it) => [it.id, it.name]));
+    const lineItems = calculateMemberItemLines(
+      bill.items.map((it) => ({
+        id: it.id,
+        price: it.price,
+        itemType: it.itemType,
+        extraMemberIds: it.extraMemberIds,
+        customMemberIds: it.customMemberIds,
+      })),
+      attendees,
+      memberId,
+    ).map((line) => ({
+      name: itemNameById.get(line.itemId) ?? '',
+      bucket: line.bucket,
+      amount: line.amount,
+    }));
 
     const payment: MyBillDto['payment'] =
       bill.paymentType === 'BANK'
@@ -418,6 +446,7 @@ export class BillsService {
         claimedAt: share.claimedAt?.toISOString() ?? null,
         claimNote: share.claimNote,
       },
+      lineItems,
       payment,
     };
   }

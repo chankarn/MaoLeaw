@@ -44,6 +44,55 @@ export interface BillCalculation {
   total: number;
 }
 
+/** Display bucket an item's cost is grouped under on the member's bill. */
+export type ShareBucket = 'shared' | 'drink' | 'mixer';
+
+export interface MemberItemLine {
+  itemId: string;
+  bucket: ShareBucket;
+  /** This member's share of the item = ceil(price / eligibleCount). */
+  amount: number;
+}
+
+/**
+ * Resolve which attendees are eligible to pay for an item.
+ * Single source of truth for eligibility — used by both calculateBill and
+ * calculateMemberItemLines so per-item lines always reconcile to bucket totals.
+ */
+export function eligibleMembersForItem(item: CalcItem, attendees: CalcAttendee[]): CalcAttendee[] {
+  function defaultEligible(type: Exclude<BillItemType, 'CUSTOM'>): CalcAttendee[] {
+    switch (type) {
+      case 'SHARED':
+        return attendees;
+      case 'LIQUOR':
+        return attendees.filter((a) => a.drinkChoice === 'LIQUOR');
+      case 'BEER':
+        return attendees.filter((a) => a.drinkChoice === 'BEER');
+      case 'MIXER':
+        return attendees.filter((a) => a.drinkChoice !== 'NONE');
+    }
+  }
+
+  if (item.itemType === 'CUSTOM') {
+    // Admin-selected set: no default, no extras — customMemberIds IS the full eligible set.
+    const customSet = new Set(item.customMemberIds ?? []);
+    return attendees.filter((a) => customSet.has(a.memberId));
+  }
+
+  const extras = new Set(item.extraMemberIds ?? []);
+  const base = defaultEligible(item.itemType);
+  const baseIds = new Set(base.map((a) => a.memberId));
+  // eligible = base ∪ (attendees whose id is in extras), base first.
+  return [...base, ...attendees.filter((a) => extras.has(a.memberId) && !baseIds.has(a.memberId))];
+}
+
+/** Display bucket for an item type (SHARED/CUSTOM → food, LIQUOR/BEER → drink, MIXER → mixer). */
+export function itemBucket(type: BillItemType): ShareBucket {
+  if (type === 'SHARED' || type === 'CUSTOM') return 'shared';
+  if (type === 'MIXER') return 'mixer';
+  return 'drink'; // LIQUOR | BEER
+}
+
 /**
  * Compute per-attendee bill shares.
  */
@@ -70,26 +119,9 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
     });
   }
 
-  // Default eligible set per item type (not used for CUSTOM).
-  function defaultEligible(type: Exclude<BillItemType, 'CUSTOM'>): CalcAttendee[] {
-    switch (type) {
-      case 'SHARED':
-        return attendees;
-      case 'LIQUOR':
-        return attendees.filter((a) => a.drinkChoice === 'LIQUOR');
-      case 'BEER':
-        return attendees.filter((a) => a.drinkChoice === 'BEER');
-      case 'MIXER':
-        return attendees.filter((a) => a.drinkChoice !== 'NONE');
-    }
-  }
-
-  // Which bucket to credit per type.
-  function bucketKey(type: BillItemType): keyof Pick<CalcShare, 'sharedAmount' | 'drinkAmount' | 'mixerAmount'> {
-    if (type === 'SHARED' || type === 'CUSTOM') return 'sharedAmount';
-    if (type === 'MIXER') return 'mixerAmount';
-    return 'drinkAmount'; // LIQUOR | BEER
-  }
+  // Which share-bucket field to credit per type.
+  const bucketField: Record<ShareBucket, keyof Pick<CalcShare, 'sharedAmount' | 'drinkAmount' | 'mixerAmount'>> =
+    { shared: 'sharedAmount', drink: 'drinkAmount', mixer: 'mixerAmount' };
 
   for (const item of items) {
     if (!Number.isInteger(item.price) || item.price < 0) {
@@ -97,22 +129,7 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
     }
     if (item.price === 0) continue;
 
-    let eligible: CalcAttendee[];
-
-    if (item.itemType === 'CUSTOM') {
-      // Admin-selected set: no default, no extras — customMemberIds IS the full eligible set.
-      const customSet = new Set(item.customMemberIds ?? []);
-      eligible = attendees.filter((a) => customSet.has(a.memberId));
-    } else {
-      const extras = new Set(item.extraMemberIds ?? []);
-      const base = defaultEligible(item.itemType);
-      const baseIds = new Set(base.map((a) => a.memberId));
-      // eligible = base ∪ (attendees whose id is in extras), base first.
-      eligible = [
-        ...base,
-        ...attendees.filter((a) => extras.has(a.memberId) && !baseIds.has(a.memberId)),
-      ];
-    }
+    const eligible = eligibleMembersForItem(item, attendees);
 
     if (eligible.length === 0) {
       warnings.push(`NO_ELIGIBLE_${item.itemType}:${item.id}`);
@@ -120,7 +137,7 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
     }
 
     const per = Math.ceil(item.price / eligible.length);
-    const key = bucketKey(item.itemType);
+    const key = bucketField[itemBucket(item.itemType)];
     for (const a of eligible) {
       const s = shares.get(a.memberId);
       if (s) s[key] += per;
@@ -136,6 +153,36 @@ export function calculateBill(items: CalcItem[], attendees: CalcAttendee[]): Bil
   }
 
   return { shares: result, warnings, total };
+}
+
+/**
+ * Per-item breakdown of one member's share — the line items behind their bucket totals.
+ * Returns only items the member actually pays into; each `amount` is their slice of that
+ * item. Lines reconcile exactly to the member's bucket totals from calculateBill because
+ * both use the same eligibility + ceil-rounding rules.
+ */
+export function calculateMemberItemLines(
+  items: CalcItem[],
+  attendees: CalcAttendee[],
+  memberId: string,
+): MemberItemLine[] {
+  const lines: MemberItemLine[] = [];
+  for (const item of items) {
+    if (!Number.isInteger(item.price) || item.price < 0) {
+      throw new Error(`Invalid item price: ${item.price} (must be non-negative integer baht)`);
+    }
+    if (item.price === 0) continue;
+
+    const eligible = eligibleMembersForItem(item, attendees);
+    if (!eligible.some((a) => a.memberId === memberId)) continue;
+
+    lines.push({
+      itemId: item.id,
+      bucket: itemBucket(item.itemType),
+      amount: Math.ceil(item.price / eligible.length),
+    });
+  }
+  return lines;
 }
 
 /**
