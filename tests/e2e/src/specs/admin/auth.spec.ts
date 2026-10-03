@@ -22,7 +22,7 @@ test.describe('Admin auth', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
 
     // Toast (sonner) appears with the API error.
-    await expect(page.getByText(/Invalid credentials|Login failed/i)).toBeVisible();
+    await expect(page.getByText(/Invalid credentials|Login failed|รหัสผ่านไม่ถูกต้อง/i)).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);
   });
 

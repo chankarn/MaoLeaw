@@ -68,9 +68,9 @@ export default function MyBillPage() {
       const slip = await compressImage(slipFile);
       const result = await claimPaid({ slip, note: note.trim() || null });
       if (result.slipCheck === 'AUTO_OK') {
-        toast.success('ตรวจสลิปผ่าน ✅ ชำระเรียบร้อยแล้ว');
+        toast.success('สลิปผ่าน ✅ จ่ายเรียบร้อยแล้ว');
       } else {
-        toast.info('ส่งสลิปแล้ว รอ admin ตรวจสอบ', {
+        toast.info('ได้รับสลิปแล้ว รอ admin เช็คอีกที', {
           description: result.slipReviewReason ?? undefined,
         });
       }
@@ -178,7 +178,7 @@ export default function MyBillPage() {
               {isPaid ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  {myShare.slipCheck === 'AUTO_OK' ? 'ชำระแล้ว (ระบบตรวจสลิปแล้ว)' : 'ชำระแล้ว (admin confirm)'}
+                  {myShare.slipCheck === 'AUTO_OK' ? 'ชำระแล้ว (ระบบตรวจสลิปแล้ว)' : 'ชำระแล้ว (admin ยืนยันแล้ว)'}
                 </span>
               ) : isClaimed ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -199,7 +199,7 @@ export default function MyBillPage() {
                   📨 แจ้งโอนเมื่อ {new Date(myShare.claimedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
                 {myShare.slipReviewReason && (
-                  <p className="mt-1 text-sky-800">ระบบตรวจไม่ผ่านเพราะ: {myShare.slipReviewReason}</p>
+                  <p className="mt-1 text-sky-800">ส่งให้ admin เช็คเพราะ: {myShare.slipReviewReason}</p>
                 )}
                 {myShare.claimNote && (
                   <p className="mt-1 text-sky-800">หมายเหตุ: {myShare.claimNote}</p>
@@ -383,7 +383,7 @@ export default function MyBillPage() {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              แนบรูปสลิป ระบบจะตรวจยอดและบัญชีผู้รับให้อัตโนมัติ ถ้าไม่แน่ใจจะส่งให้ admin ตรวจต่อ
+              แนบสลิปมาได้เลย ระบบจะเช็คยอดกับบัญชีผู้รับให้ ถ้าเช็คเองไม่ได้จะส่งต่อให้ admin ดู
             </p>
             <div className="rounded-xl bg-amber-50 p-3 text-sm">
               <p className="text-xs text-muted-foreground">ยอด</p>

@@ -115,7 +115,7 @@ test.describe('LIFF: My bill flow', () => {
     await page.getByRole('button', { name: /^ส่งสลิป$/ }).click();
 
     await expect(page.getByRole('button', { name: /รอตรวจสลิป/ })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/ระบบตรวจไม่ผ่านเพราะ/)).toBeVisible();
+    await expect(page.getByText(/ส่งให้ admin เช็คเพราะ/)).toBeVisible();
   });
 
   test('event detail of past event with bill → auto-redirects to /bill', async ({

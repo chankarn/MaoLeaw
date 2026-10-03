@@ -76,7 +76,7 @@ export default function DashboardPage() {
             ))}
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>อัพเดท{timeAgo(new Date(dataUpdatedAt).toISOString())}</span>
+            <span>อัปเดต{timeAgo(new Date(dataUpdatedAt).toISOString())}</span>
             <Button
               size="icon"
               variant="ghost"

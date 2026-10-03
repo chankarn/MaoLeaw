@@ -90,7 +90,7 @@ export class EventsService {
       },
     });
 
-    if (!event) throw new NotFoundException('Event not found');
+    if (!event) throw new NotFoundException('ไม่พบงานนี้ (อาจถูกลบไปแล้ว)');
 
     const attendees: AttendeeDto[] = event.submissions.map((s) => ({
       memberId: s.memberId,
@@ -159,7 +159,7 @@ export class EventsService {
       where: { id: eventId, deletedAt: null },
       include: { _count: { select: { submissions: true } } },
     });
-    if (!ev) throw new NotFoundException('Event not found');
+    if (!ev) throw new NotFoundException('ไม่พบงานนี้ (อาจถูกลบไปแล้ว)');
     return {
       id: ev.id,
       name: ev.name,
@@ -176,9 +176,9 @@ export class EventsService {
       where: { id: eventId, deletedAt: null },
       include: { bill: true },
     });
-    if (!ev) throw new NotFoundException('Event not found');
+    if (!ev) throw new NotFoundException('ไม่พบงานนี้ (อาจถูกลบไปแล้ว)');
     if (ev.bill && !ev.bill.deletedAt) {
-      throw new ConflictException('Cannot delete event with an existing bill — delete bill first');
+      throw new ConflictException('งานนี้มีบิลอยู่ ลบบิลก่อนแล้วค่อยลบงาน');
     }
     return prisma.event.update({ where: { id: eventId }, data: { deletedAt: new Date() } });
   }
@@ -239,7 +239,7 @@ export class EventsService {
         },
       },
     });
-    if (!event) throw new NotFoundException('Event not found');
+    if (!event) throw new NotFoundException('ไม่พบงานนี้ (อาจถูกลบไปแล้ว)');
     return event.submissions.map((s) => ({
       memberId: s.memberId,
       name: s.nameSnapshot || s.member.customName || s.member.lineDisplayName,

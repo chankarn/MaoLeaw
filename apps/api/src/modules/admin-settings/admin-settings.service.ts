@@ -32,12 +32,12 @@ export class AdminSettingsService {
 
   async changePassword(adminId: string, currentPassword: string, newPassword: string) {
     if (newPassword.length < 10) {
-      throw new BadRequestException('Password must be at least 10 characters');
+      throw new BadRequestException('รหัสผ่านต้องยาวอย่างน้อย 10 ตัว');
     }
     const admin = await prisma.adminUser.findUnique({ where: { id: adminId } });
     if (!admin) throw new NotFoundException('Admin not found');
     const ok = await bcrypt.compare(currentPassword, admin.passwordHash);
-    if (!ok) throw new UnauthorizedException('Current password incorrect');
+    if (!ok) throw new UnauthorizedException('รหัสผ่านปัจจุบันไม่ถูกต้อง');
 
     const hash = await bcrypt.hash(newPassword, 12);
     await prisma.adminUser.update({ where: { id: adminId }, data: { passwordHash: hash } });

@@ -77,10 +77,10 @@ export class AuthService {
 
   async loginAdmin(input: AdminLoginInput): Promise<AdminAuthResponse> {
     const admin = await prisma.adminUser.findUnique({ where: { email: input.email } });
-    if (!admin) throw new UnauthorizedException('Invalid credentials');
+    if (!admin) throw new UnauthorizedException('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
 
     const ok = await bcrypt.compare(input.password, admin.passwordHash);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
+    if (!ok) throw new UnauthorizedException('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
 
     const payload: JwtPayload = { sub: admin.id, role: 'ADMIN', email: admin.email };
     const token = await this.jwt.signAsync(payload);

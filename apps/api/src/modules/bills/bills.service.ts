@@ -88,7 +88,7 @@ export class BillsService {
         },
       },
     });
-    if (!bill) throw new NotFoundException('Bill not found');
+    if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
     return bill;
   }
 
@@ -97,10 +97,10 @@ export class BillsService {
       where: { id: input.eventId, deletedAt: null },
       include: { bill: true, submissions: true },
     });
-    if (!event) throw new NotFoundException('Event not found');
-    if (event.bill) throw new ConflictException('Event already has a bill');
+    if (!event) throw new NotFoundException('ไม่พบงานนี้');
+    if (event.bill) throw new ConflictException('งานนี้มีบิลอยู่แล้ว');
     if (event.submissions.length === 0) {
-      throw new BadRequestException('Event has no attendees');
+      throw new BadRequestException('งานนี้ยังไม่มีคนเข้าร่วม สร้างบิลไม่ได้');
     }
 
     const attendeeIds = new Set(event.submissions.map((s) => s.memberId));
@@ -166,8 +166,8 @@ export class BillsService {
       where: { id: billId, deletedAt: null },
       include: { event: { include: { submissions: true } }, items: true },
     });
-    if (!bill) throw new NotFoundException('Bill not found');
-    if (bill.status !== 'DRAFT') throw new ConflictException('Only DRAFT bills can be edited');
+    if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
+    if (bill.status !== 'DRAFT') throw new ConflictException('แก้ได้เฉพาะบิลที่ยังเป็น Draft');
     validatePaymentPatch(input);
 
     return prisma.$transaction(async (tx) => {
@@ -243,9 +243,9 @@ export class BillsService {
 
   async delete(billId: string) {
     const bill = await prisma.bill.findUnique({ where: { id: billId } });
-    if (!bill) throw new NotFoundException('Bill not found');
+    if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
     if (bill.status === 'CLOSED') {
-      throw new ConflictException('Closed bills cannot be deleted');
+      throw new ConflictException('บิลที่ปิดแล้วลบไม่ได้');
     }
     await this.purgeSlipImages({ billId });
     // Hard delete — BillItem/BillShare cascade. Frees the eventId so a new bill can be created.
@@ -260,7 +260,7 @@ export class BillsService {
       where: { id: eventId, deletedAt: null },
       include: { submissions: true },
     });
-    if (!event) throw new NotFoundException('Event not found');
+    if (!event) throw new NotFoundException('ไม่พบงานนี้');
 
     const attendees: CalcAttendee[] = event.submissions.map((s) => ({
       memberId: s.memberId,
@@ -281,9 +281,9 @@ export class BillsService {
 
   async send(billId: string) {
     const draft = await prisma.bill.findFirst({ where: { id: billId, deletedAt: null } });
-    if (!draft) throw new NotFoundException('Bill not found');
+    if (!draft) throw new NotFoundException('ไม่พบบิลนี้');
     if (draft.status !== 'DRAFT') {
-      throw new ConflictException('Only DRAFT bills can be sent — use retry-push for failed shares');
+      throw new ConflictException('บิลนี้ส่งไปแล้ว ถ้ามีคนที่ส่งไม่ถึง ให้กดส่งซ้ำรายคน');
     }
     // Snapshot shares against the final attendee list before members are notified.
     await prisma.$transaction((tx) => recomputeDraftShares(tx, billId));
@@ -301,8 +301,8 @@ export class BillsService {
 
   async close(billId: string) {
     const bill = await prisma.bill.findUnique({ where: { id: billId } });
-    if (!bill) throw new NotFoundException('Bill not found');
-    if (bill.status !== 'SENT') throw new ConflictException('Only SENT bills can be closed');
+    if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
+    if (bill.status !== 'SENT') throw new ConflictException('ต้องส่งบิลก่อนถึงจะปิดได้');
     const closed = await prisma.bill.update({
       where: { id: billId },
       data: { status: 'CLOSED', closedAt: new Date() },
@@ -313,9 +313,9 @@ export class BillsService {
 
   async resetToDraft(billId: string) {
     const bill = await prisma.bill.findUnique({ where: { id: billId } });
-    if (!bill) throw new NotFoundException('Bill not found');
+    if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
     if (bill.status === 'CLOSED') {
-      throw new ConflictException('Closed bills cannot be reset — delete and recreate instead');
+      throw new ConflictException('บิลที่ปิดแล้วรีเซ็ตไม่ได้ ต้องลบแล้วสร้างใหม่');
     }
     if (bill.status === 'DRAFT') return bill;
 
@@ -355,7 +355,7 @@ export class BillsService {
 
   async markShare(billId: string, shareId: string, status: 'PENDING' | 'CLAIMED' | 'PAID') {
     const share = await prisma.billShare.findUnique({ where: { id: shareId }, select: { billId: true } });
-    if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
+    if (!share || share.billId !== billId) throw new NotFoundException('ไม่พบรายการนี้');
     if (status !== 'CLAIMED') await this.purgeSlipImages({ id: shareId });
     return prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status) });
   }
@@ -369,9 +369,9 @@ export class BillsService {
       where: { id: shareId },
       include: { bill: { include: { event: true } }, member: true },
     });
-    if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
-    if (share.paymentStatus !== 'CLAIMED') throw new ConflictException('Only CLAIMED shares can be rejected');
-    if (share.bill.status !== 'SENT') throw new ConflictException('Only SENT bills can be rejected');
+    if (!share || share.billId !== billId) throw new NotFoundException('ไม่พบรายการนี้');
+    if (share.paymentStatus !== 'CLAIMED') throw new ConflictException('ตีกลับได้เฉพาะรายการที่แจ้งโอนมาแล้ว');
+    if (share.bill.status !== 'SENT') throw new ConflictException('ตีกลับได้เฉพาะบิลที่ส่งแล้ว');
 
     await this.purgeSlipImages({ id: shareId });
     await prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch('PENDING') });
@@ -400,14 +400,14 @@ export class BillsService {
       where: { eventId, deletedAt: null },
       include: { event: { select: { eventDate: true } } },
     });
-    if (!bill || bill.status === 'DRAFT') throw new NotFoundException('No bill');
-    if (bill.status === 'CLOSED') throw new ConflictException('Bill closed');
+    if (!bill || bill.status === 'DRAFT') throw new NotFoundException('ยังไม่มีบิลของงานนี้');
+    if (bill.status === 'CLOSED') throw new ConflictException('บิลนี้ปิดแล้ว');
     const share = await prisma.billShare.findUnique({
       where: { billId_memberId: { billId: bill.id, memberId } },
     });
-    if (!share) throw new NotFoundException('You are not part of this bill');
+    if (!share) throw new NotFoundException('คุณไม่ได้อยู่ในบิลนี้');
     // Never downgrade an admin-confirmed payment back to CLAIMED.
-    if (share.paymentStatus === 'PAID') throw new ConflictException('Already marked as paid');
+    if (share.paymentStatus === 'PAID') throw new ConflictException('รายการนี้ชำระเรียบร้อยแล้ว');
 
     const outcome = await this.slipVerifier.verify(file);
     const slip = outcome.kind === 'verified' ? outcome.slip : null;
@@ -470,10 +470,10 @@ export class BillsService {
       where: { id: shareId },
       select: { billId: true, slipImagePath: true },
     });
-    if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
-    if (!share.slipImagePath) throw new NotFoundException('No slip image');
+    if (!share || share.billId !== billId) throw new NotFoundException('ไม่พบรายการนี้');
+    if (!share.slipImagePath) throw new NotFoundException('รายการนี้ไม่มีรูปสลิป');
     const url = await this.slipStorage.signedUrl(share.slipImagePath);
-    if (!url) throw new NotFoundException('Slip image unavailable');
+    if (!url) throw new NotFoundException('เปิดรูปสลิปไม่ได้');
     return { url };
   }
 
@@ -504,8 +504,8 @@ export class BillsService {
       where: { id: shareId },
       include: { bill: { include: { event: true } }, member: true },
     });
-    if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
-    if (share.bill.status !== 'SENT') throw new ConflictException('Only SENT bills can be pushed');
+    if (!share || share.billId !== billId) throw new NotFoundException('ไม่พบรายการนี้');
+    if (share.bill.status !== 'SENT') throw new ConflictException('ส่งข้อความได้เฉพาะบิลที่ส่งแล้ว');
 
     const ok = await this.push.sendShareNotification(share.bill, share.bill.event, share, share.member);
     return ok;
@@ -520,12 +520,12 @@ export class BillsService {
       },
     });
     // DRAFT amounts can still change — members only see a bill once it is sent.
-    if (!bill || bill.status === 'DRAFT') throw new NotFoundException('No bill for this event');
+    if (!bill || bill.status === 'DRAFT') throw new NotFoundException('ยังไม่มีบิลของงานนี้');
 
     const share = await prisma.billShare.findUnique({
       where: { billId_memberId: { billId: bill.id, memberId } },
     });
-    if (!share) throw new NotFoundException('You are not part of this bill');
+    if (!share) throw new NotFoundException('คุณไม่ได้อยู่ในบิลนี้');
 
     // Per-item breakdown of this member's share. Reuses the canonical calc rules,
     // so the lines reconcile exactly to share.{sharedAmount,drinkAmount,mixerAmount}.
@@ -628,13 +628,13 @@ function expectedPayment(
 /** A payment-type switch must carry that channel's fields (create enforces this via schema). */
 function validatePaymentPatch(input: UpdateBillInput) {
   if (input.paymentType === 'PROMPTPAY' && !input.promptpayId) {
-    throw new BadRequestException('promptpayId is required for PROMPTPAY');
+    throw new BadRequestException('ใส่หมายเลข PromptPay ด้วย');
   }
   if (
     input.paymentType === 'BANK' &&
     (!input.bankCode || !input.bankAccountNumber || !input.bankAccountName)
   ) {
-    throw new BadRequestException('bankCode, bankAccountNumber and bankAccountName are required for BANK');
+    throw new BadRequestException('ใส่ธนาคาร เลขบัญชี และชื่อบัญชีให้ครบ');
   }
 }
 

@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { ApiError, apiFetch } from '@/lib/api';
 import type { ClaimResultDto, MyBillDto } from '@maoleaw/shared';
 
 export function useMyBill(eventId: string, enabled = true) {
@@ -10,8 +10,7 @@ export function useMyBill(eventId: string, enabled = true) {
     enabled,
     retry: (failureCount, err) => {
       // Don't retry 404 (no bill yet)
-      const msg = (err as Error)?.message ?? '';
-      if (msg.toLowerCase().includes('not found')) return false;
+      if (err instanceof ApiError && err.problem.status === 404) return false;
       return failureCount < 2;
     },
   });

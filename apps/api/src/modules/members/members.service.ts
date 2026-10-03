@@ -7,7 +7,7 @@ import type { DrinkPreference, MemberDto, MemberType, RegisterMemberInput, Updat
 export class MembersService {
   async getById(memberId: string): Promise<MemberDto> {
     const m = await prisma.member.findUnique({ where: { id: memberId } });
-    if (!m) throw new NotFoundException('Member not found');
+    if (!m) throw new NotFoundException('ไม่พบบัญชีของคุณ');
     return this.toDto(m);
   }
 

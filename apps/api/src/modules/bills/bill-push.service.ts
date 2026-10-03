@@ -114,13 +114,13 @@ export class BillPushService {
           { type: 'separator' },
           {
             type: 'text',
-            text: reason ? `เหตุผล: ${reason}` : 'admin ตรวจสอบแล้วยังไม่พบยอดโอนนี้',
+            text: reason ? `เหตุผล: ${reason}` : 'admin เช็คแล้วยังไม่เจอยอดโอนนี้',
             size: 'sm',
             wrap: true,
           },
           {
             type: 'text',
-            text: 'กรุณาตรวจสอบแล้วส่งสลิปใหม่อีกครั้งในหน้าบิล',
+            text: 'เช็คอีกทีแล้วส่งสลิปใหม่ในหน้าบิลได้เลย',
             size: 'sm',
             color: '#78716C',
             wrap: true,
@@ -196,7 +196,7 @@ export class BillPushService {
           { type: 'separator' },
           {
             type: 'text',
-            text: '📸 โอนแล้วกด "ฉันโอนแล้ว" แล้วแนบสลิปในหน้าบิล ระบบจะตรวจให้อัตโนมัติ',
+            text: '📸 โอนเสร็จ กด "ฉันโอนแล้ว" แล้วแนบสลิป ระบบเช็คให้เอง',
             size: 'sm',
             color: '#0369A1',
             wrap: true,

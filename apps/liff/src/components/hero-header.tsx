@@ -51,5 +51,5 @@ function getGreeting(): string {
   if (h < 12) return 'อรุณสวัสดิ์';
   if (h < 17) return 'สวัสดีตอนบ่าย';
   if (h < 20) return 'สวัสดีตอนเย็น';
-  return 'ราตรีสวัสดิ์';
+  return 'สวัสดีตอนค่ำ';
 }

@@ -39,6 +39,14 @@ import {
 import { cn, formatBaht, formatThaiDateTime } from '@/lib/utils';
 
 const STATUS_VARIANT = { DRAFT: 'outline', SENT: 'warning', CLOSED: 'success' } as const;
+const STATUS_TH = { PENDING: 'รอชำระ', CLAIMED: 'แจ้งโอนแล้ว', PAID: 'ชำระแล้ว' } as const;
+const ITEM_TYPE_LABEL = {
+  LIQUOR: '🥃 เหล้า',
+  BEER: '🍺 เบียร์',
+  MIXER: '🧊 มิกเซอร์',
+  SHARED: '👥 หารทุกคน',
+  CUSTOM: '✏️ เลือกเอง',
+} as const;
 
 export default function BillDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -111,14 +119,14 @@ export default function BillDetailPage() {
   async function handleSend() {
     try {
       const r = await send.mutateAsync();
-      toast.success(`ส่งแล้ว ${r.sent} คน${r.failed > 0 ? ` (failed ${r.failed})` : ''}`);
+      toast.success(`ส่งแล้ว ${r.sent} คน${r.failed > 0 ? ` (ส่งไม่ถึง ${r.failed} คน)` : ''}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'ส่งไม่สำเร็จ');
     }
   }
 
   async function handleClose() {
-    if (!confirm('ปิดบิลแล้วจะแก้ submission ไม่ได้ ยืนยัน?')) return;
+    if (!confirm('ปิดบิลแล้ว สมาชิกจะแจ้งโอนไม่ได้อีก และรูปสลิปที่รอตรวจจะถูกลบ ยืนยัน?')) return;
     try {
       await close.mutateAsync();
       toast.success('ปิดบิลแล้ว');
@@ -141,7 +149,7 @@ export default function BillDetailPage() {
   async function handleReset() {
     if (
       !confirm(
-        'รีเซ็ตเป็น Draft จะ:\n• ล้างสถานะแจ้งโอน/ชำระของทุกคน\n• ต้อง Send ใหม่หลังแก้\n\nยืนยัน?',
+        'รีเซ็ตเป็น Draft จะ:\n• ล้างสถานะแจ้งโอน/ชำระ และสลิปของทุกคน\n• ต้อง Send ใหม่หลังแก้\n\nยืนยัน?',
       )
     )
       return;
@@ -157,7 +165,7 @@ export default function BillDetailPage() {
     if (selected.size === 0) return;
     try {
       const r = await bulkMark.mutateAsync({ shareIds: [...selected], status });
-      toast.success(`อัปเดต ${r.count} share เป็น ${status}`);
+      toast.success(`อัปเดต ${r.count} คนเป็น ${STATUS_TH[status]} (${status})`);
       clearSelection();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'ไม่สำเร็จ');
@@ -380,11 +388,7 @@ export default function BillDetailPage() {
                     <div>
                       <p className="font-medium">{it.name}</p>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {it.itemType === 'LIQUOR'
-                          ? '🥃 เหล้า'
-                          : it.itemType === 'BEER'
-                            ? '🍺 เบียร์'
-                            : '👥 หาร'}
+                        {ITEM_TYPE_LABEL[it.itemType]}
                       </p>
                     </div>
                     <span className="font-mono tabular-nums">{formatBaht(it.price)}</span>
@@ -696,9 +700,9 @@ function RejectClaimDialog({
         {share && (
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              สถานะของ <span className="font-semibold text-foreground">{share.name}</span> (
-              {formatBaht(share.amount)}) จะกลับเป็น “รอชำระ” และระบบจะส่งข้อความ LINE
-              ให้ส่งสลิปใหม่
+              <span className="font-semibold text-foreground">{share.name}</span> (
+              {formatBaht(share.amount)}) จะกลับไปเป็น &quot;รอชำระ&quot; แล้วระบบจะส่ง LINE
+              บอกให้ส่งสลิปใหม่
             </p>
             <div className="flex flex-wrap gap-1.5">
               {REJECT_REASONS.map((r) => (
@@ -718,7 +722,7 @@ function RejectClaimDialog({
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value.slice(0, 200))}
-              placeholder="เหตุผล (ไม่บังคับ) — จะแสดงในข้อความที่ส่งถึงผู้ใช้"
+              placeholder="เหตุผล (ไม่ใส่ก็ได้) จะแสดงในข้อความ LINE ที่ส่งไป"
               rows={3}
               className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />

@@ -11,18 +11,18 @@ export class SubmissionsService {
       where: { id: eventId, deletedAt: null },
       include: { bill: { select: { id: true, status: true } } },
     });
-    if (!event) throw new NotFoundException('Event not found');
+    if (!event) throw new NotFoundException('ไม่พบงานนี้ (อาจถูกลบไปแล้ว)');
     if (event.bill?.status === 'CLOSED') {
-      throw new ConflictException('Bill closed — cannot edit submission');
+      throw new ConflictException('ปิดบิลแล้ว แก้การเข้าร่วมไม่ได้');
     }
     if (event.bill?.status === 'SENT') {
-      throw new ConflictException('Bill already sent — cannot edit submission');
+      throw new ConflictException('ส่งบิลแล้ว แก้การเข้าร่วมไม่ได้');
     }
 
     const member = await prisma.member.findUnique({ where: { id: memberId } });
-    if (!member) throw new NotFoundException('Member not found');
+    if (!member) throw new NotFoundException('ไม่พบบัญชีของคุณ');
     if (member.customName === '') {
-      throw new ForbiddenException('Member not registered');
+      throw new ForbiddenException('ลงทะเบียนก่อนนะ แล้วค่อยเข้าร่วมงาน');
     }
 
     const draftBillId = event.bill?.id;
