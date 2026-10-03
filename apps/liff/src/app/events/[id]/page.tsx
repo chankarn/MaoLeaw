@@ -2,7 +2,7 @@
 'use client';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Clock, Filter, MapPin, Users } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Clock, Filter, Map as MapIcon, MapPin, Share2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,8 @@ import { useSubmitAttendance } from '@/hooks/use-submission';
 import { cn } from '@/lib/utils';
 import type { DrinkChoice, MemberType } from '@maoleaw/shared';
 import { useMemberTypes } from '@/hooks/use-member-types';
+import { googleCalendarUrl, googleMapsUrl, liffUrl } from '@/lib/links';
+import { eventShareCard, openExternal, shareToLine, toastShareResult } from '@/lib/share';
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -91,6 +93,42 @@ export default function EventDetailPage() {
         <div className="relative mt-4 space-y-1.5 text-sm">
           <Row icon={<Clock className="h-4 w-4" />} text={formatTime(date)} />
           <Row icon={<MapPin className="h-4 w-4" />} text={event.venue} />
+        </div>
+
+        <div className="relative mt-4 flex flex-wrap gap-2">
+          <HeroAction
+            icon={<MapIcon className="h-3.5 w-3.5" />}
+            label="แผนที่"
+            onClick={() => openExternal(googleMapsUrl(event.venue))}
+          />
+          {!event.isPast && (
+            <HeroAction
+              icon={<CalendarPlus className="h-3.5 w-3.5" />}
+              label="เพิ่มลงปฏิทิน"
+              onClick={() =>
+                openExternal(
+                  googleCalendarUrl({
+                    name: event.name,
+                    venue: event.venue,
+                    start: date,
+                    details: liffUrl(`/events/${event.id}`),
+                  }),
+                )
+              }
+            />
+          )}
+          <HeroAction
+            icon={<Share2 className="h-3.5 w-3.5" />}
+            label="ชวนเพื่อน"
+            onClick={async () =>
+              toastShareResult(
+                await shareToLine(
+                  eventShareCard({ ...event, attendeeCount: stats.total }),
+                  liffUrl(`/events/${event.id}`),
+                ),
+              )
+            }
+          />
         </div>
       </header>
 
@@ -312,6 +350,27 @@ export default function EventDetailPage() {
         defaultDrink={mySubmission?.drinkChoice ?? (me?.preferredDrink as DrinkChoice | undefined)}
       />
     </main>
+  );
+}
+
+function HeroAction({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition active:scale-95 hover:bg-white/30"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

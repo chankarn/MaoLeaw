@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, CheckCircle2, Clock, Copy, Download, ImagePlus, Receipt, Share2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, Copy, Download, ImagePlus, Receipt, Share2, Users } from 'lucide-react';
 import QRCode from 'qrcode';
 import generatePayload from 'promptpay-qr';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,8 @@ import { BANK_OPTIONS, type MyBillDto } from '@maoleaw/shared';
 import { ApiError } from '@/lib/api';
 import { compressImage } from '@/lib/image';
 import { isInLineClient } from '@/lib/liff';
+import { liffUrl } from '@/lib/links';
+import { billShareCard, shareToLine, toastShareResult } from '@/lib/share';
 import { cn, formatBaht } from '@/lib/utils';
 
 export default function MyBillPage() {
@@ -310,6 +312,25 @@ export default function MyBillPage() {
         ) : (
           <BankCard payment={payment} onCopy={copyText} />
         )}
+      </section>
+
+      {/* ─── Tell the group (card has no amounts — everyone opens their own share) ─── */}
+      <section className="px-4 pt-4">
+        <button
+          type="button"
+          onClick={async () =>
+            toastShareResult(
+              await shareToLine(
+                billShareCard({ eventId: id, billName: bill.name }),
+                liffUrl(`/events/${id}/bill`),
+              ),
+            )
+          }
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-amber-300 bg-white/70 px-4 py-3 text-sm font-medium text-amber-800 transition active:scale-[0.98]"
+        >
+          <Users className="h-4 w-4" />
+          บอกเพื่อนในกลุ่มว่าบิลออกแล้ว
+        </button>
       </section>
 
       {/* ─── Sticky CTA (raised) ─── */}
