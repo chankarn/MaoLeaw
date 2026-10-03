@@ -161,7 +161,8 @@ Each Next.js app is a Vercel project rooted at `apps/liff` / `apps/admin`:
 Render free spins down after 15 min idle, and Supabase free pauses after 7 days without
 **database** activity. `.github/workflows/keep-warm.yml` handles both by pinging
 `/v1/health/db` (runs `SELECT 1`) — plain `/v1/health` does not touch the DB, so it will
-not keep Supabase alive.
+not keep Supabase alive. Pings run only 17:00–02:00 Bangkok so Render uses ~290 of its
+750 free hours (24/7 would be ~744); daytime requests wait for a ~50s cold start.
 
 - Repo secrets: `API_URL` (required, e.g. `https://<your-render>.onrender.com`) and
   `DATABASE_URL` (optional — direct DB ping fallback when Render is down).

@@ -1,15 +1,19 @@
 # File: .github/workflows/keep-warm.yml
 # Keeps the free tiers alive:
-#   - Render spins the API down after 15 min idle → ping it.
+#   - Render spins the API down after 15 min idle → ping it, but only during party
+#     hours: 17:00–02:00 Bangkok (10:00–19:00 UTC). Staying up 24/7 burns ~744 of the
+#     750 free instance hours a month; evenings only is ~290. Outside that window the
+#     first request (LIFF open or a bot message) waits for a ~50s cold start.
 #   - Supabase pauses the project after 7 days without DB activity → the ping must
 #     actually query the DB (/v1/health/db runs SELECT 1; plain /v1/health does not).
+#     The daily evening pings are plenty for that.
 # GitHub disables scheduled workflows in public repos after 60 days without repo
 # activity, so the last step re-enables this workflow through the API each run.
 name: Keep API Warm
 
 on:
   schedule:
-    - cron: '*/12 * * * *'
+    - cron: '*/12 10-18 * * *' # UTC → every ~12 min, 17:00–01:59 Asia/Bangkok
   workflow_dispatch:
 
 permissions:
