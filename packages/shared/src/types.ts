@@ -141,3 +141,15 @@ export interface ClaimResultDto {
   /** Thai, human-readable — set when slipCheck = NEEDS_REVIEW. */
   slipReviewReason: string | null;
 }
+
+/** GET /members/me/bills — what the member still owes across sent bills. */
+export interface MyOutstandingDto {
+  totalOutstanding: number;
+  bills: {
+    eventId: string | null;
+    title: string;
+    amount: number;
+    /** CLAIMED = slip sent, waiting for admin review. */
+    paymentStatus: 'PENDING' | 'CLAIMED';
+  }[];
+}

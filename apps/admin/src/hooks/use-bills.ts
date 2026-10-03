@@ -150,7 +150,7 @@ export function useMarkShare(billId: string) {
       shareId: string;
       status: 'PENDING' | 'CLAIMED' | 'PAID';
     }) =>
-      apiFetch(`/admin/bills/${billId}/shares/${shareId}`, {
+      apiFetch<{ billClosed: boolean }>(`/admin/bills/${billId}/shares/${shareId}`, {
         method: 'PATCH',
         body: JSON.stringify({ paymentStatus: status }),
       }),
@@ -177,7 +177,7 @@ export function useBulkMarkShares(billId: string) {
       shareIds: string[];
       status: 'PENDING' | 'CLAIMED' | 'PAID';
     }) =>
-      apiFetch<{ count: number }>(`/admin/bills/${billId}/shares/bulk-mark`, {
+      apiFetch<{ count: number; billClosed: boolean }>(`/admin/bills/${billId}/shares/bulk-mark`, {
         method: 'POST',
         body: JSON.stringify({ shareIds, paymentStatus: status }),
       }),

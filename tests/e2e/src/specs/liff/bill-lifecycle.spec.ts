@@ -101,8 +101,11 @@ test.describe('Bill lifecycle', () => {
     });
     await expect(claimWithSlip(auth.token, ev.id, e2eSlip({ amount: 300 }))).rejects.toThrow(/409/);
 
-    await closeBill(adminToken, bill.id);
+    // Marking the only share PAID closed the bill automatically.
+    const after = await apiCall<{ status: string }>(`/admin/bills/${bill.id}`, { token: adminToken });
+    expect(after.status).toBe('CLOSED');
   });
+
 });
 
 test.describe('Slip verification', () => {
@@ -183,6 +186,19 @@ test.describe('Slip verification', () => {
     // The rejected slip's transRef is released — a corrected slip settles it.
     const ok = await claimWithSlip(auth.token, ev.id, e2eSlip({ amount: 300 }));
     expect(ok.paymentStatus).toBe('PAID');
+  });
+
+  test('outstanding summary lists unpaid shares; auto-close clears it', async ({ liff, newLineUser }) => {
+    const { auth, ev } = await setup(liff, newLineUser, 'outstanding');
+    const before = await apiCall<{ totalOutstanding: number; bills: { amount: number }[] }>(
+      '/members/me/bills',
+      { token: auth.token },
+    );
+    expect(before.totalOutstanding).toBe(300);
+
+    await claimWithSlip(auth.token, ev.id, e2eSlip({ amount: 300 }));
+    const after = await apiCall<{ totalOutstanding: number }>('/members/me/bills', { token: auth.token });
+    expect(after.totalOutstanding).toBe(0);
   });
 
   test('claim without a slip is rejected', async ({ liff, newLineUser }) => {

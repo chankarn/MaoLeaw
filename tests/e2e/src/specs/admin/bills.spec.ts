@@ -128,8 +128,11 @@ test.describe('Admin: Bill lifecycle', () => {
     await expect(markBtn).toBeVisible({ timeout: 5000 });
     await markBtn.click();
 
-    // Toast text: "อัปเดต N share เป็น PAID"
+    // Toast text: "อัปเดต N คนเป็น ชำระแล้ว (PAID)"
     await expect(adminPage.getByText(/อัปเดต.*PAID/)).toBeVisible({ timeout: 7000 });
+    // Everyone paid → the bill closes itself.
+    await expect(adminPage.getByText(/ปิดบิลให้อัตโนมัติ/)).toBeVisible({ timeout: 7000 });
+    await expect(adminPage.getByText(/^CLOSED$/)).toBeVisible();
   });
 
   test('reset to draft after send', async ({ adminPage, adminToken }) => {

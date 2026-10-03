@@ -553,8 +553,8 @@ erDiagram
 
 ### 7.1 Must-have (Phase 1)
 1. **Bill confirmation by user** — ใน LIFF bill view มีปุ่ม "ฉันโอนแล้ว 📸" + upload slip (optional, base64 ไม่ต้องเก็บ) → mark `paid` (admin ตรวจอีกที). แก้ปัญหา admin ตามเงินยุ่งยาก.
-2. **Admin can mark paid** — ในหน้า bill detail (admin) มี checkbox ข้างชื่อแต่ละคน → toggle paid/pending. + นับ "เก็บเงินครบแล้ว X/Y คน"
-3. **My total debt summary** — ใน LIFF profile แสดง "ยอดค้างจ่ายรวม ฿XXX" ของทุก bill ที่ pending → กระตุ้นจ่าย
+2. **Admin can mark paid** — ในหน้า bill detail (admin) มี checkbox ข้างชื่อแต่ละคน → toggle paid/pending. + นับ "เก็บเงินครบแล้ว X/Y คน" — ✅ (2026-10-04) บิลปิดอัตโนมัติเมื่อทุก share ที่ยอด > 0 เป็น PAID
+3. ✅ (2026-10-04) **My total debt summary** — ใน LIFF profile แสดง "ยอดค้างจ่ายรวม ฿XXX" ของทุก bill ที่ pending → กระตุ้นจ่าย
 4. **Empty states & loading skeletons** — สำคัญสำหรับ LIFF UX
 
 ### 7.2 Nice-to-have (Phase 2)

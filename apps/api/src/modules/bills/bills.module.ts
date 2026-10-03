@@ -1,6 +1,6 @@
 // File: apps/api/src/modules/bills/bills.module.ts
 import { Module } from '@nestjs/common';
-import { BillsController } from './bills.controller';
+import { BillsController, MyBillsController } from './bills.controller';
 import { AdminBillsController } from './admin-bills.controller';
 import { BillsService } from './bills.service';
 import { BillPushService } from './bill-push.service';
@@ -9,7 +9,7 @@ import { SlipsModule } from '../slips/slips.module';
 
 @Module({
   imports: [AuthModule, SlipsModule],
-  controllers: [BillsController, AdminBillsController],
+  controllers: [BillsController, MyBillsController, AdminBillsController],
   providers: [BillsService, BillPushService],
   exports: [BillsService],
 })

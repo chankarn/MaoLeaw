@@ -17,7 +17,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, type JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { claimPaidSchema, type ClaimPaidInput } from '@maoleaw/shared';
+import { claimPaidSchema, type ClaimPaidInput, type MyOutstandingDto } from '@maoleaw/shared';
 import { BillsService } from './bills.service';
 import type { UploadedSlip } from '../slips/slip-verifier.service';
 
@@ -48,5 +48,19 @@ export class BillsController {
       throw new BadRequestException('กรุณาแนบรูปสลิปการโอนเงิน');
     }
     return this.bills.claimPaid(eventId, user.sub, body.note, slip);
+  }
+}
+
+/** The member's outstanding shares across all sent bills (LIFF profile summary). */
+@Controller('/members/me/bills')
+@UseGuards(JwtAuthGuard)
+@Roles('MEMBER')
+export class MyBillsController {
+  constructor(private readonly bills: BillsService) {}
+
+  @Get()
+  async outstanding(@CurrentUser() user: JwtPayload): Promise<MyOutstandingDto> {
+    const bills = await this.bills.getMyOutstanding(user.sub);
+    return { totalOutstanding: bills.reduce((sum, b) => sum + b.amount, 0), bills };
   }
 }

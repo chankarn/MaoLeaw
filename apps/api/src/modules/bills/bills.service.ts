@@ -350,14 +350,36 @@ export class BillsService {
       where: { id: { in: shareIds }, billId },
       data: shareStatusPatch(status),
     });
-    return { count: result.count };
+    const billClosed = status === 'PAID' && (await this.closeIfFullyPaid(billId));
+    return { count: result.count, billClosed };
   }
 
   async markShare(billId: string, shareId: string, status: 'PENDING' | 'CLAIMED' | 'PAID') {
     const share = await prisma.billShare.findUnique({ where: { id: shareId }, select: { billId: true } });
     if (!share || share.billId !== billId) throw new NotFoundException('ไม่พบรายการนี้');
     if (status !== 'CLAIMED') await this.purgeSlipImages({ id: shareId });
-    return prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status) });
+    const updated = await prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status) });
+    const billClosed = status === 'PAID' && (await this.closeIfFullyPaid(billId));
+    return { ...updated, billClosed };
+  }
+
+  /**
+   * Close a SENT bill once nobody owes anything. Zero-amount shares (e.g. a non-drinker on a
+   * drinks-only bill) count as settled, otherwise such bills could never close on their own.
+   */
+  private async closeIfFullyPaid(billId: string): Promise<boolean> {
+    const unpaid = await prisma.billShare.count({
+      where: { billId, paymentStatus: { not: 'PAID' }, amount: { gt: 0 } },
+    });
+    if (unpaid > 0) return false;
+    // Guarded update: only one of several concurrent "last payments" performs the close.
+    const { count } = await prisma.bill.updateMany({
+      where: { id: billId, status: 'SENT' },
+      data: { status: 'CLOSED', closedAt: new Date() },
+    });
+    if (count === 0) return false;
+    await this.purgeSlipImages({ billId });
+    return true;
   }
 
   /** Unsettled shares on sent bills — what the member still owes (chat bot "บิล"). */
@@ -366,6 +388,7 @@ export class BillsService {
       where: {
         memberId,
         paymentStatus: { in: ['PENDING', 'CLAIMED'] },
+        amount: { gt: 0 },
         bill: { status: 'SENT', deletedAt: null },
       },
       orderBy: { createdAt: 'desc' },
@@ -494,6 +517,8 @@ export class BillsService {
           slipImagePath,
         },
       });
+      // The auto-verified slip may have been the last outstanding payment.
+      if (verdict.ok) await this.closeIfFullyPaid(bill.id);
       return {
         paymentStatus: updated.paymentStatus,
         slipCheck: verdict.ok ? 'AUTO_OK' : 'NEEDS_REVIEW',

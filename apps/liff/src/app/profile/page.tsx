@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BottomTab } from '@/components/bottom-tab';
+import { OutstandingCard } from '@/components/outstanding-card';
 import { DRINK_PREFERENCES, MAX_CUSTOM_NAME_LENGTH } from '@maoleaw/shared';
 import { useMemberTypes } from '@/hooks/use-member-types';
 import type { DrinkPreference, MemberType } from '@maoleaw/shared';
@@ -92,6 +93,10 @@ export default function ProfilePage() {
         </section>
 
         <div className="mt-6 px-4">
+          <OutstandingCard />
+        </div>
+
+        <div className="mt-4 px-4">
           <Card className="space-y-4 p-5">
             <div className="space-y-2">
               <Label htmlFor="profile-name">ชื่อที่ใช้แสดง</Label>

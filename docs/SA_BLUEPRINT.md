@@ -1352,6 +1352,11 @@ API (BillsService.claimPaid):
 
 Admin mark PENDING ล้างข้อมูลสลิปทั้งหมด (คืน transRef ให้ใช้ใหม่ได้)
 
+### 9.3.1 Auto-close & outstanding (2026-10-04)
+- `closeIfFullyPaid(billId)` รันหลังทุกจุดที่ share กลายเป็น PAID (สลิปผ่านอัตโนมัติ, admin mark, bulk mark): ถ้าไม่เหลือ share ที่ `amount > 0` และยังไม่ PAID → `SENT → CLOSED` (guarded `updateMany` กันปิดซ้ำ) + ลบรูปสลิป. share ยอด 0 บาทนับว่าจ่ายแล้ว
+- admin mark/bulk คืน `billClosed` → UI ขึ้น toast
+- `GET /v1/members/me/bills` → `MyOutstandingDto { totalOutstanding, bills[] }` (PENDING/CLAIMED, amount > 0, บิล SENT) — ใช้ใน LIFF Profile และ chat bot
+
 ### 9.4 Config
 `SLIPOK_API_KEY`, `SLIPOK_BRANCH_ID` (ไม่ตั้ง = ทุก claim ไป review), `SLIPOK_MONTHLY_LIMIT` (default 100), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (ไม่ตั้ง = ไม่เก็บรูป).
 E2E_TEST_MODE: ใช้ fake verifier — ไฟล์ที่ขึ้นต้น `E2E-SLIP:{json}` = สลิปที่อ่านได้

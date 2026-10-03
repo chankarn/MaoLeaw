@@ -42,6 +42,7 @@ import {
 import { cn, formatBaht, formatThaiDateTime } from '@/lib/utils';
 
 const STATUS_VARIANT = { DRAFT: 'outline', SENT: 'warning', CLOSED: 'success' } as const;
+const AUTO_CLOSED_MSG = 'ทุกคนจ่ายครบแล้ว ปิดบิลให้อัตโนมัติ 🎉';
 const STATUS_TH = { PENDING: 'รอชำระ', CLAIMED: 'แจ้งโอนแล้ว', PAID: 'ชำระแล้ว' } as const;
 const ITEM_TYPE_LABEL = {
   LIQUOR: '🥃 เหล้า',
@@ -193,6 +194,7 @@ export default function BillDetailPage() {
     try {
       const r = await bulkMark.mutateAsync({ shareIds: [...selected], status });
       toast.success(`อัปเดต ${r.count} คนเป็น ${STATUS_TH[status]} (${status})`);
+      if (r.billClosed) toast.success(AUTO_CLOSED_MSG);
       clearSelection();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'ไม่สำเร็จ');
@@ -398,7 +400,12 @@ export default function BillDetailPage() {
                       </p>
                       <RowActions
                         share={s}
-                        onMark={(status) => mark.mutate({ shareId: s.id, status })}
+                        onMark={(status) =>
+                          mark.mutate(
+                            { shareId: s.id, status },
+                            { onSuccess: (r) => r.billClosed && toast.success(AUTO_CLOSED_MSG) },
+                          )
+                        }
                         onReject={() =>
                           setRejecting({
                             id: s.id,

@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch } from '@/lib/api';
-import type { ClaimResultDto, MyBillDto } from '@maoleaw/shared';
+import type { ClaimResultDto, MyBillDto, MyOutstandingDto } from '@maoleaw/shared';
 
 export function useMyBill(eventId: string, enabled = true) {
   return useQuery({
@@ -26,6 +26,18 @@ export function useClaimPaid(eventId: string) {
       if (input.note) form.append('note', input.note);
       return apiFetch<ClaimResultDto>(`/events/${eventId}/my-bill/claim`, { method: 'POST', body: form });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-bill', eventId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-bill', eventId] });
+      qc.invalidateQueries({ queryKey: ['my-outstanding'] });
+    },
+  });
+}
+
+/** Everything the member still owes across sent bills (profile summary). */
+export function useMyOutstanding() {
+  return useQuery({
+    queryKey: ['my-outstanding'],
+    queryFn: () => apiFetch<MyOutstandingDto>('/members/me/bills'),
+    staleTime: 30_000,
   });
 }
