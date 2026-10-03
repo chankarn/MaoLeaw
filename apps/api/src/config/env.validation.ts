@@ -28,6 +28,13 @@ export const configValidationSchema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
 
   SENTRY_DSN: z.string().url().optional().or(z.literal('')),
+  // Slip verification (optional — without SlipOK keys every claim goes to admin review;
+  // without Supabase keys, review images are not kept).
+  SLIPOK_API_KEY: z.string().optional(),
+  SLIPOK_BRANCH_ID: z.string().optional(),
+  SLIPOK_MONTHLY_LIMIT: z.coerce.number().int().nonnegative().default(100),
+  SUPABASE_URL: z.string().url().optional().or(z.literal('')),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
 
   // E2E test bypass — when 'true', /auth/line accepts fake idTokens (e2e:USER_ID)
   // and LINE Push is skipped. NEVER set in production.

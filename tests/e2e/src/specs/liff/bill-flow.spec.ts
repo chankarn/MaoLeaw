@@ -7,6 +7,7 @@ import {
 } from '../../helpers/db';
 import {
   createBill,
+  e2eSlip,
   createEvent,
   loginAdmin,
   sendBill,
@@ -68,14 +69,53 @@ test.describe('LIFF: My bill flow', () => {
     await expect(page.getByRole('heading', { name: /แจ้งโอนเงิน/ })).toBeVisible();
     await page.locator('#note').fill('โอน 21:30 ผ่าน app');
 
-    // Submit claim — wait for click + API + toast
-    await page.getByRole('button', { name: /^แจ้งโอน$/ }).click();
-    // Either toast appears OR button label switches — both confirm success
-    await Promise.race([
-      page.getByText(/แจ้งโอนแล้ว รอ admin/).waitFor({ timeout: 10_000 }),
-      page.getByRole('button', { name: /แจ้งโอนแล้ว.*แก้ไข/ }).waitFor({ timeout: 10_000 }),
-    ]);
-    await expect(page.getByRole('button', { name: /แจ้งโอนแล้ว.*แก้ไข/ })).toBeVisible({ timeout: 5000 });
+    // Slip is required — submit stays disabled until one is attached.
+    const submit = page.getByRole('button', { name: /^ส่งสลิป$/ });
+    await expect(submit).toBeDisabled();
+    // share = beer 600 (sole beer drinker) + food 400 = 1000
+    await page.locator('#slip').setInputFiles({
+      name: 'slip.png',
+      mimeType: 'image/png',
+      buffer: e2eSlip({ amount: 1000 }),
+    });
+    await submit.click();
+
+    // Valid slip → settled automatically, no admin step.
+    await expect(page.getByRole('button', { name: /ชำระเรียบร้อย/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/ระบบตรวจสลิปแล้ว/)).toBeVisible();
+  });
+
+  test('unreadable slip → waits for admin review', async ({ page, liff, newLineUser }) => {
+    const auth = await liff.installRegistered(newLineUser, {
+      customName: newLineUser.displayName,
+      preferredDrink: 'BEER',
+      memberType: 'FRIEND',
+    });
+    const adminToken = await loginAdmin();
+    const ev = await createEvent(adminToken, {
+      name: makeEventName(`${TAG} Review`),
+      venue: 'Bar',
+      eventDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    });
+    await submitAttendance(auth.token, ev.id, { customName: newLineUser.displayName, drinkChoice: 'BEER' });
+    const bill = await createBill(adminToken, {
+      eventId: ev.id,
+      name: `${TAG} review`,
+      items: [{ name: 'food', price: 300, itemType: 'SHARED' }],
+    });
+    await sendBill(adminToken, bill.id);
+
+    await page.goto(`/events/${ev.id}/bill`);
+    await page.getByRole('button', { name: /ฉันโอนแล้ว/ }).click();
+    await page.locator('#slip').setInputFiles({
+      name: 'blurry.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('not a readable slip'),
+    });
+    await page.getByRole('button', { name: /^ส่งสลิป$/ }).click();
+
+    await expect(page.getByRole('button', { name: /รอตรวจสลิป/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/ระบบตรวจไม่ผ่านเพราะ/)).toBeVisible();
   });
 
   test('event detail of past event with bill → auto-redirects to /bill', async ({

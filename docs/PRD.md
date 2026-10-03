@@ -30,7 +30,7 @@
 | Free-tier cost | $0/เดือน (ภายในขีดจำกัด free quota) |
 
 ### 1.4 Out of Scope (Phase 1)
-- ระบบ verify การจ่ายเงินจริง (ยึดความซื่อสัตย์, admin mark paid เอง — ดูใน Phase 2)
+- ~~ระบบ verify การจ่ายเงินจริง~~ → ทำแล้ว (2026-10-03): ตรวจสลิปอัตโนมัติผ่าน SlipOK — ดู SA §9
 - Multi-tenant (รองรับกลุ่มเดียวก่อน)
 - Mobile native app
 - Push notification ไปยัง browser (ใช้ LINE Push แทน)
@@ -633,7 +633,7 @@ erDiagram
 | Bot command success rate | ≥ 95% (ไม่ error / ตอบถูก intent) |
 
 **Out of Scope (Phase 2 — เลื่อนไป Phase 3):**
-- OCR สลิป / verify การจ่ายจริงด้วยรูป
+- ~~OCR สลิป / verify การจ่ายจริงด้วยรูป~~ → ทำแล้ว (2026-10-03) ด้วย SlipOK QR verify (ไม่ใช่ OCR) — ดู SA §9
 - บอทในแชตกลุ่ม (group chat) — Phase 2 ทำเฉพาะ **1-on-1** เท่านั้น
 - รับ/เก็บรูปสลิปผ่าน bot (ไม่มี storage)
 - หารบิลแบบ "ตามรายการ split ละเอียด" หรือยอดไม่เท่ากันต่อคนแบบ manual

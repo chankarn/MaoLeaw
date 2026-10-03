@@ -9,6 +9,7 @@ export type BillStatus = 'DRAFT' | 'SENT' | 'CLOSED';
 export type BillItemType = 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED' | 'CUSTOM';
 export type PaymentStatus = 'PENDING' | 'CLAIMED' | 'PAID';
 export type PushDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED';
+export type SlipCheck = 'AUTO_OK' | 'NEEDS_REVIEW';
 export type PaymentType = 'PROMPTPAY' | 'BANK';
 export type BankCode = 'BBL' | 'KBANK' | 'KTB' | 'SCB' | 'BAY' | 'TTB' | 'GSB' | 'BAAC' | 'GHB' | 'UOB' | 'CIMB' | 'LHB' | 'TISCO' | 'KKP';
 export type AdminRole = 'ADMIN';
@@ -87,6 +88,9 @@ export interface MyBillDto {
     paidAt: string | null;
     claimedAt: string | null;
     claimNote: string | null;
+    /** Result of the automatic slip check on the last claim (null = no slip yet). */
+    slipCheck: SlipCheck | null;
+    slipReviewReason: string | null;
   };
   /** Per-item breakdown of this member's share, grouped by display bucket. */
   lineItems: {
@@ -128,4 +132,12 @@ export interface ProblemDetail {
   status: number;
   detail?: string;
   fields?: Record<string, string>;
+}
+
+/** Response of POST /events/:id/my-bill/claim (multipart, field `slip`). */
+export interface ClaimResultDto {
+  paymentStatus: PaymentStatus;
+  slipCheck: SlipCheck;
+  /** Thai, human-readable — set when slipCheck = NEEDS_REVIEW. */
+  slipReviewReason: string | null;
 }

@@ -1313,4 +1313,41 @@ Response: `201` bill + items + shares (เหมือนเดิม)
 
 ---
 
+## 9. Slip Verification (2026-10-03)
+
+แทนการส่งสลิปในแชท LINE OA ให้ admin ไล่ตรวจ: member **ต้องแนบรูปสลิป** ตอนกด "ฉันโอนแล้ว" แล้วระบบตรวจให้อัตโนมัติ
+
+### 9.1 Flow
+```
+LIFF: เลือกรูป → ย่อ (≤1600px JPEG) → POST /v1/events/:id/my-bill/claim  (multipart: slip, note?)
+API (BillsService.claimPaid):
+  1. bill ต้อง SENT, share ต้องไม่ PAID
+  2. SlipVerifierService → SlipOK (อ่าน QR บนสลิป แล้ว lookup กับธนาคาร)
+     - เกิน SLIPOK_MONTHLY_LIMIT (นับใน AppConfig, atomic) → ไม่เรียก SlipOK
+  3. transRef เคยใช้กับ share อื่น → 409
+  4. evaluateSlip() (pure): ยอด ≥ share.amount · โอนหลัง eventDate-1d · ผู้รับตรงบัญชีของบิล
+     (เทียบเลขที่มองเห็นจากเลขที่ถูก mask; BANK เช็ค receivingBank code ด้วย)
+  5. ผ่าน → PAID + slipCheck=AUTO_OK (ไม่เก็บรูป)
+     ไม่ผ่าน/ตรวจไม่ได้ → CLAIMED + NEEDS_REVIEW + slipReviewReason + รูปใน Storage
+```
+
+### 9.2 Data
+- `BillShare`: `slipCheck` (AUTO_OK|NEEDS_REVIEW), `slipReviewReason`, `slipTransRef` (UNIQUE — สลิปเดียวใช้ได้ share เดียว), `slipAmount`, `slipTransferredAt`, `slipImagePath`
+- `AppConfig`: `slipokUsageMonth`, `slipokUsageCount` (กันเกินโควต้าฟรี 100/เดือน → ไม่มีค่า overage)
+- รูป: Supabase Storage bucket `slips` (private, สร้างอัตโนมัติ) path `{billId}/{shareId}` — เก็บเฉพาะ NEEDS_REVIEW; ลบเมื่อ admin mark PAID/PENDING, close, reset-to-draft, delete bill → DB ไม่บวม (เก็บแค่ ~200 bytes/share)
+
+### 9.3 API
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/v1/events/:id/my-bill/claim` | multipart `slip` (image ≤5MB, required) + `note`; คืน `ClaimResultDto` |
+| GET | `/v1/admin/bills/:id/shares/:shareId/slip` | `{ url }` signed URL อายุ 5 นาที |
+
+Admin mark PENDING ล้างข้อมูลสลิปทั้งหมด (คืน transRef ให้ใช้ใหม่ได้)
+
+### 9.4 Config
+`SLIPOK_API_KEY`, `SLIPOK_BRANCH_ID` (ไม่ตั้ง = ทุก claim ไป review), `SLIPOK_MONTHLY_LIMIT` (default 100), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (ไม่ตั้ง = ไม่เก็บรูป).
+E2E_TEST_MODE: ใช้ fake verifier — ไฟล์ที่ขึ้นต้น `E2E-SLIP:{json}` = สลิปที่อ่านได้
+
+---
+
 **End of SA Blueprint — v1.0 + Phase 2 addendum (2026-06-06)**

@@ -135,3 +135,47 @@ export async function closeBill(token: string, billId: string) {
 export async function sendBill(token: string, billId: string) {
   return apiCall(`/admin/bills/${billId}/send`, { method: 'POST', token });
 }
+
+/**
+ * Fake slip "image" understood by the API's E2E verifier (E2E_TEST_MODE=true):
+ * `E2E-SLIP:{json}`. Defaults describe a valid PromptPay transfer to 0812345678.
+ */
+export function e2eSlip(
+  overrides: Partial<{
+    transRef: string;
+    amount: number;
+    transferredAt: string | null;
+    receiverBankCode: string | null;
+    receiverAccount: string | null;
+    receiverProxy: string | null;
+  }> = {},
+): Buffer {
+  const slip = {
+    transRef: `E2E-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    amount: 0,
+    transferredAt: new Date().toISOString(),
+    receiverBankCode: null,
+    receiverAccount: null,
+    receiverProxy: 'xxx-xxx-5678',
+    ...overrides,
+  };
+  return Buffer.from(`E2E-SLIP:${JSON.stringify(slip)}`);
+}
+
+/** Claim payment with a slip (multipart). Returns the API's ClaimResultDto. */
+export async function claimWithSlip(
+  token: string,
+  eventId: string,
+  slip: Buffer,
+): Promise<{ paymentStatus: string; slipCheck: string; slipReviewReason: string | null }> {
+  const form = new FormData();
+  form.append('slip', new Blob([new Uint8Array(slip)], { type: 'image/png' }), 'slip.png');
+  const res = await fetch(`${ENV.apiUrl}/v1/events/${eventId}/my-bill/claim`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`API POST claim → ${res.status}: ${text}`);
+  return JSON.parse(text);
+}

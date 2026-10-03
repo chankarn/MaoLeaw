@@ -35,5 +35,15 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      - key: SLIPOK_API_KEY
+        sync: false
+      - key: SLIPOK_BRANCH_ID
+        sync: false
+      - key: SLIPOK_MONTHLY_LIMIT
+        value: 100
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: SENTRY_DSN
         sync: false

@@ -32,6 +32,7 @@ import {
   useResetToDraft,
   useRetryPush,
   useSendBill,
+  useSlipImageUrl,
 } from '@/hooks/use-bills';
 import { cn, formatBaht, formatThaiDateTime } from '@/lib/utils';
 
@@ -330,6 +331,7 @@ export default function BillDetailPage() {
                         {formatBaht(s.drinkAmount)}
                         {s.mixerAmount > 0 && <> · Mixer {formatBaht(s.mixerAmount)}</>}
                       </p>
+                      <SlipInfo billId={id} share={s} />
                       {s.claimNote && (
                         <p className="mt-0.5 truncate text-[11px] italic text-sky-700">
                           📝 "{s.claimNote}"
@@ -580,5 +582,61 @@ function RowActions({
     >
       Mark paid
     </Button>
+  );
+}
+
+/** Slip verification result: auto-confirmed badge, or review reason + image link. */
+function SlipInfo({
+  billId,
+  share,
+}: {
+  billId: string;
+  share: {
+    id: string;
+    slipCheck: 'AUTO_OK' | 'NEEDS_REVIEW' | null;
+    slipReviewReason: string | null;
+    slipAmount: number | null;
+    slipImagePath: string | null;
+  };
+}) {
+  const slipUrl = useSlipImageUrl(billId);
+  if (!share.slipCheck) return null;
+
+  if (share.slipCheck === 'AUTO_OK') {
+    return (
+      <p className="mt-0.5 text-[11px] font-medium text-emerald-700">
+        🤖 ระบบตรวจสลิปแล้ว
+        {share.slipAmount !== null && <> · {formatBaht(share.slipAmount)}</>}
+      </p>
+    );
+  }
+
+  async function openSlip() {
+    // Open the tab synchronously so popup blockers allow it, then point it at the signed URL.
+    const tab = window.open('', '_blank');
+    try {
+      const { url } = await slipUrl.mutateAsync(share.id);
+      if (tab) tab.location.href = url;
+      else window.location.href = url;
+    } catch (err) {
+      tab?.close();
+      toast.error(err instanceof Error ? err.message : 'เปิดรูปสลิปไม่ได้');
+    }
+  }
+
+  return (
+    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-amber-700">
+      <span>⚠️ รอตรวจสลิป{share.slipReviewReason && `: ${share.slipReviewReason}`}</span>
+      {share.slipImagePath && (
+        <button
+          type="button"
+          onClick={openSlip}
+          disabled={slipUrl.isPending}
+          className="font-medium text-primary underline underline-offset-2"
+        >
+          ดูสลิป
+        </button>
+      )}
+    </div>
   );
 }

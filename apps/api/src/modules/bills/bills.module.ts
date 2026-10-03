@@ -5,9 +5,10 @@ import { AdminBillsController } from './admin-bills.controller';
 import { BillsService } from './bills.service';
 import { BillPushService } from './bill-push.service';
 import { AuthModule } from '../auth/auth.module';
+import { SlipsModule } from '../slips/slips.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, SlipsModule],
   controllers: [BillsController, AdminBillsController],
   providers: [BillsService, BillPushService],
 })

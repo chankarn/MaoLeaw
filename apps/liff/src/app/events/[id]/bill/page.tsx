@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, CheckCircle2, Clock, Copy, Download, Receipt, Share2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, Copy, Download, ImagePlus, Receipt, Share2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import generatePayload from 'promptpay-qr';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/error-state';
 import { useClaimPaid, useMyBill } from '@/hooks/use-bill';
 import { BANK_OPTIONS, type MyBillDto } from '@maoleaw/shared';
 import { ApiError } from '@/lib/api';
+import { compressImage } from '@/lib/image';
 import { isInLineClient } from '@/lib/liff';
 import { cn, formatBaht } from '@/lib/utils';
 
@@ -24,6 +25,8 @@ export default function MyBillPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [claimOpen, setClaimOpen] = useState(false);
   const [note, setNote] = useState('');
+  const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [slipPreview, setSlipPreview] = useState<string | null>(null);
   // Fallback preview: full-size QR the user can long-press to save when the
   // WebView blocks programmatic downloads / file sharing.
   const [qrPreview, setQrPreview] = useState<string | null>(null);
@@ -38,6 +41,16 @@ export default function MyBillPage() {
     }
   }, [data]);
 
+  useEffect(() => {
+    if (!slipFile) {
+      setSlipPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(slipFile);
+    setSlipPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [slipFile]);
+
   if (isLoading) return <BillSkeleton />;
   if (isError || !data) {
     const is404 = error instanceof ApiError && error.problem.status === 404;
@@ -50,11 +63,20 @@ export default function MyBillPage() {
   const isClaimed = myShare.paymentStatus === 'CLAIMED';
 
   async function handleSubmitClaim() {
+    if (!slipFile) return;
     try {
-      await claimPaid({ note: note.trim() || null });
-      toast.success('แจ้งโอนแล้ว รอ admin ตรวจสอบ');
+      const slip = await compressImage(slipFile);
+      const result = await claimPaid({ slip, note: note.trim() || null });
+      if (result.slipCheck === 'AUTO_OK') {
+        toast.success('ตรวจสลิปผ่าน ✅ ชำระเรียบร้อยแล้ว');
+      } else {
+        toast.info('ส่งสลิปแล้ว รอ admin ตรวจสอบ', {
+          description: result.slipReviewReason ?? undefined,
+        });
+      }
       setClaimOpen(false);
       setNote('');
+      setSlipFile(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'ไม่สามารถส่งได้');
     }
@@ -156,12 +178,12 @@ export default function MyBillPage() {
               {isPaid ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  ชำระแล้ว (admin confirm)
+                  {myShare.slipCheck === 'AUTO_OK' ? 'ชำระแล้ว (ระบบตรวจสลิปแล้ว)' : 'ชำระแล้ว (admin confirm)'}
                 </span>
               ) : isClaimed ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <Clock className="h-3.5 w-3.5" />
-                  รอ admin ตรวจสอบ
+                  รอ admin ตรวจสลิป
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
@@ -176,6 +198,9 @@ export default function MyBillPage() {
                 <p className="font-medium text-sky-900">
                   📨 แจ้งโอนเมื่อ {new Date(myShare.claimedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
+                {myShare.slipReviewReason && (
+                  <p className="mt-1 text-sky-800">ระบบตรวจไม่ผ่านเพราะ: {myShare.slipReviewReason}</p>
+                )}
                 {myShare.claimNote && (
                   <p className="mt-1 text-sky-800">หมายเหตุ: {myShare.claimNote}</p>
                 )}
@@ -307,7 +332,7 @@ export default function MyBillPage() {
           {isPaid
             ? '✓ ชำระเรียบร้อย'
             : isClaimed
-              ? '📨 แจ้งโอนแล้ว · แก้ไข'
+              ? '📨 รอตรวจสลิป · ส่งสลิปใหม่'
               : '✅ ฉันโอนแล้ว'}
         </Button>
       </div>
@@ -358,7 +383,7 @@ export default function MyBillPage() {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              หลังกด admin จะเห็นว่าคุณแจ้งโอนแล้ว และจะตรวจสอบในบัญชีก่อนยืนยัน
+              แนบรูปสลิป ระบบจะตรวจยอดและบัญชีผู้รับให้อัตโนมัติ ถ้าไม่แน่ใจจะส่งให้ admin ตรวจต่อ
             </p>
             <div className="rounded-xl bg-amber-50 p-3 text-sm">
               <p className="text-xs text-muted-foreground">ยอด</p>
@@ -366,9 +391,30 @@ export default function MyBillPage() {
                 {formatBaht(myShare.amount)}
               </p>
             </div>
-            <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-800">
-              <span className="mt-0.5 shrink-0 text-base">📸</span>
-              <p>อย่าลืม<span className="font-semibold">ส่งรูปสลิปมาในแชท LINE OA</span> ด้วยนะ เพื่อให้ admin ตรวจสอบได้เร็วขึ้น</p>
+            <div className="space-y-2">
+              <Label htmlFor="slip">รูปสลิป *</Label>
+              <label
+                htmlFor="slip"
+                className={cn(
+                  'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-sm transition',
+                  slipFile ? 'border-primary/40 bg-amber-50/50' : 'border-stone-300 text-muted-foreground',
+                )}
+              >
+                {slipPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={slipPreview} alt="สลิปที่เลือก" className="max-h-48 rounded-lg object-contain" />
+                ) : (
+                  <ImagePlus className="h-8 w-8" />
+                )}
+                <span>{slipFile ? 'แตะเพื่อเปลี่ยนรูป' : 'แตะเพื่อเลือกรูปสลิป'}</span>
+              </label>
+              <input
+                id="slip"
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => setSlipFile(e.target.files?.[0] ?? null)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="note">หมายเหตุ (ถ้ามี)</Label>
@@ -387,8 +433,8 @@ export default function MyBillPage() {
             <Button variant="outline" onClick={() => setClaimOpen(false)}>
               ยกเลิก
             </Button>
-            <Button onClick={handleSubmitClaim} disabled={claiming}>
-              {claiming ? 'กำลังส่ง…' : 'แจ้งโอน'}
+            <Button onClick={handleSubmitClaim} disabled={claiming || !slipFile}>
+              {claiming ? 'กำลังตรวจสลิป…' : 'ส่งสลิป'}
             </Button>
           </DialogFooter>
         </DialogContent>

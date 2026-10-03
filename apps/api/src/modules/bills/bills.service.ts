@@ -1,25 +1,33 @@
 // File: apps/api/src/modules/bills/bills.service.ts
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { prisma } from '@maoleaw/db';
+import { Prisma, prisma } from '@maoleaw/db';
 import {
   calculateBill,
   calculateMemberItemLines,
   sumItemPrices,
   type BankCode,
   type CalcAttendee,
+  type ClaimResultDto,
   type CreateBillInput,
   type MyBillDto,
   type UpdateBillInput,
 } from '@maoleaw/shared';
 import { BillPushService } from './bill-push.service';
 import { recomputeDraftShares } from './recompute-shares';
+import { evaluateSlip, type ExpectedPayment, type SlipVerdict } from '../slips/evaluate-slip';
+import { SlipStorageService } from '../slips/slip-storage.service';
+import { SlipVerifierService, type UploadedSlip } from '../slips/slip-verifier.service';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class BillsService {
   constructor(
     private readonly cfg: ConfigService,
     private readonly push: BillPushService,
+    private readonly slipVerifier: SlipVerifierService,
+    private readonly slipStorage: SlipStorageService,
   ) {}
 
   async listAdmin(opts: { page: number; limit: number; status?: string }) {
@@ -239,6 +247,7 @@ export class BillsService {
     if (bill.status === 'CLOSED') {
       throw new ConflictException('Closed bills cannot be deleted');
     }
+    await this.purgeSlipImages({ billId });
     // Hard delete — BillItem/BillShare cascade. Frees the eventId so a new bill can be created.
     return prisma.bill.delete({ where: { id: billId } });
   }
@@ -294,10 +303,12 @@ export class BillsService {
     const bill = await prisma.bill.findUnique({ where: { id: billId } });
     if (!bill) throw new NotFoundException('Bill not found');
     if (bill.status !== 'SENT') throw new ConflictException('Only SENT bills can be closed');
-    return prisma.bill.update({
+    const closed = await prisma.bill.update({
       where: { id: billId },
       data: { status: 'CLOSED', closedAt: new Date() },
     });
+    await this.purgeSlipImages({ billId });
+    return closed;
   }
 
   async resetToDraft(billId: string) {
@@ -308,15 +319,13 @@ export class BillsService {
     }
     if (bill.status === 'DRAFT') return bill;
 
+    await this.purgeSlipImages({ billId });
     return prisma.$transaction(async (tx) => {
       // Reset all shares
       await tx.billShare.updateMany({
         where: { billId },
         data: {
-          paymentStatus: 'PENDING',
-          paidAt: null,
-          claimedAt: null,
-          claimNote: null,
+          ...shareStatusPatch('PENDING'),
           pushStatus: 'PENDING',
           pushError: null,
           pushSentAt: null,
@@ -335,6 +344,8 @@ export class BillsService {
     status: 'PENDING' | 'CLAIMED' | 'PAID',
   ) {
     if (shareIds.length === 0) return { count: 0 };
+    // An admin decision (paid / back to pending) ends the review — drop the images.
+    if (status !== 'CLAIMED') await this.purgeSlipImages({ id: { in: shareIds }, billId });
     const result = await prisma.billShare.updateMany({
       where: { id: { in: shareIds }, billId },
       data: shareStatusPatch(status),
@@ -345,11 +356,25 @@ export class BillsService {
   async markShare(billId: string, shareId: string, status: 'PENDING' | 'CLAIMED' | 'PAID') {
     const share = await prisma.billShare.findUnique({ where: { id: shareId }, select: { billId: true } });
     if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
+    if (status !== 'CLAIMED') await this.purgeSlipImages({ id: shareId });
     return prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status) });
   }
 
-  async claimPaid(eventId: string, memberId: string, note: string | null | undefined) {
-    const bill = await prisma.bill.findFirst({ where: { eventId, deletedAt: null } });
+  /**
+   * Member claims payment with a slip image. The slip is verified (SlipOK) and checked
+   * against the share: a clean match settles it as PAID immediately; anything doubtful
+   * becomes CLAIMED + NEEDS_REVIEW with the image kept for the admin.
+   */
+  async claimPaid(
+    eventId: string,
+    memberId: string,
+    note: string | null | undefined,
+    file: UploadedSlip,
+  ): Promise<ClaimResultDto> {
+    const bill = await prisma.bill.findFirst({
+      where: { eventId, deletedAt: null },
+      include: { event: { select: { eventDate: true } } },
+    });
     if (!bill || bill.status === 'DRAFT') throw new NotFoundException('No bill');
     if (bill.status === 'CLOSED') throw new ConflictException('Bill closed');
     const share = await prisma.billShare.findUnique({
@@ -358,13 +383,94 @@ export class BillsService {
     if (!share) throw new NotFoundException('You are not part of this bill');
     // Never downgrade an admin-confirmed payment back to CLAIMED.
     if (share.paymentStatus === 'PAID') throw new ConflictException('Already marked as paid');
-    return prisma.billShare.update({
-      where: { billId_memberId: { billId: bill.id, memberId } },
-      data: {
-        paymentStatus: 'CLAIMED',
-        claimedAt: new Date(),
-        claimNote: note?.trim() ? note.trim() : null,
-      },
+
+    const outcome = await this.slipVerifier.verify(file);
+    const slip = outcome.kind === 'verified' ? outcome.slip : null;
+    let verdict: SlipVerdict;
+    if (outcome.kind === 'verified') {
+      await this.assertSlipUnused(outcome.slip.transRef, share.id);
+      verdict = evaluateSlip(outcome.slip, {
+        amount: share.amount,
+        // Paying at the venue before the bill exists is normal; older slips are suspicious.
+        notBefore: new Date(bill.event.eventDate.getTime() - DAY_MS),
+        payment: expectedPayment(bill, this.cfg.getOrThrow<string>('PROMPTPAY_ID')),
+      });
+    } else {
+      verdict = { ok: false, reason: outcome.reason };
+    }
+
+    // Keep the image only when a human has to look at it.
+    let slipImagePath: string | null = null;
+    if (!verdict.ok) {
+      const path = `${bill.id}/${share.id}`;
+      if (await this.slipStorage.upload(path, file.buffer, file.mimetype)) slipImagePath = path;
+    } else if (share.slipImagePath) {
+      await this.slipStorage.remove([share.slipImagePath]);
+    }
+
+    const now = new Date();
+    try {
+      const updated = await prisma.billShare.update({
+        where: { id: share.id },
+        data: {
+          paymentStatus: verdict.ok ? 'PAID' : 'CLAIMED',
+          paidAt: verdict.ok ? now : null,
+          claimedAt: now,
+          claimNote: note?.trim() ? note.trim() : null,
+          slipCheck: verdict.ok ? 'AUTO_OK' : 'NEEDS_REVIEW',
+          slipReviewReason: verdict.ok ? null : verdict.reason,
+          slipTransRef: slip?.transRef ?? null,
+          slipAmount: slip ? Math.floor(slip.amount) : null,
+          slipTransferredAt: slip?.transferredAt ?? null,
+          slipImagePath,
+        },
+      });
+      return {
+        paymentStatus: updated.paymentStatus,
+        slipCheck: verdict.ok ? 'AUTO_OK' : 'NEEDS_REVIEW',
+        slipReviewReason: verdict.ok ? null : verdict.reason,
+      };
+    } catch (err) {
+      // Same slip submitted concurrently for another share.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('สลิปนี้ถูกใช้แจ้งโอนไปแล้ว');
+      }
+      throw err;
+    }
+  }
+
+  /** Signed URL for an admin to view a slip that needs review. */
+  async getSlipImageUrl(billId: string, shareId: string) {
+    const share = await prisma.billShare.findUnique({
+      where: { id: shareId },
+      select: { billId: true, slipImagePath: true },
+    });
+    if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
+    if (!share.slipImagePath) throw new NotFoundException('No slip image');
+    const url = await this.slipStorage.signedUrl(share.slipImagePath);
+    if (!url) throw new NotFoundException('Slip image unavailable');
+    return { url };
+  }
+
+  private async assertSlipUnused(transRef: string, shareId: string) {
+    const used = await prisma.billShare.findFirst({
+      where: { slipTransRef: transRef, NOT: { id: shareId } },
+      select: { id: true },
+    });
+    if (used) throw new ConflictException('สลิปนี้ถูกใช้แจ้งโอนไปแล้ว');
+  }
+
+  /** Review images only matter until a decision is made — delete and unlink them. */
+  private async purgeSlipImages(where: Prisma.BillShareWhereInput) {
+    const shares = await prisma.billShare.findMany({
+      where: { ...where, slipImagePath: { not: null } },
+      select: { id: true, slipImagePath: true },
+    });
+    if (shares.length === 0) return;
+    await this.slipStorage.remove(shares.map((s) => s.slipImagePath!));
+    await prisma.billShare.updateMany({
+      where: { id: { in: shares.map((s) => s.id) } },
+      data: { slipImagePath: null },
     });
   }
 
@@ -451,6 +557,8 @@ export class BillsService {
         paidAt: share.paidAt?.toISOString() ?? null,
         claimedAt: share.claimedAt?.toISOString() ?? null,
         claimNote: share.claimNote,
+        slipCheck: share.slipCheck,
+        slipReviewReason: share.slipReviewReason,
       },
       lineItems,
       payment,
@@ -462,7 +570,34 @@ export class BillsService {
 function shareStatusPatch(status: 'PENDING' | 'CLAIMED' | 'PAID') {
   if (status === 'PAID') return { paymentStatus: status, paidAt: new Date() };
   if (status === 'CLAIMED') return { paymentStatus: status, paidAt: null, claimedAt: new Date() };
-  return { paymentStatus: status, paidAt: null, claimedAt: null, claimNote: null };
+  // Back to PENDING forgets the claim entirely, including the slip (frees its transRef).
+  return {
+    paymentStatus: status,
+    paidAt: null,
+    claimedAt: null,
+    claimNote: null,
+    slipCheck: null,
+    slipReviewReason: null,
+    slipTransRef: null,
+    slipAmount: null,
+    slipTransferredAt: null,
+  };
+}
+
+/** Where the bill expects money to land (same fallback as the member's bill view). */
+function expectedPayment(
+  bill: {
+    paymentType: 'PROMPTPAY' | 'BANK';
+    promptpayId: string | null;
+    bankCode: BankCode | null;
+    bankAccountNumber: string | null;
+  },
+  defaultPromptpayId: string,
+): ExpectedPayment {
+  if (bill.paymentType === 'BANK') {
+    return { type: 'BANK', bankCode: bill.bankCode!, accountNumber: bill.bankAccountNumber! };
+  }
+  return { type: 'PROMPTPAY', promptpayId: bill.promptpayId ?? defaultPromptpayId };
 }
 
 /** A payment-type switch must carry that channel's fields (create enforces this via schema). */

@@ -65,6 +65,11 @@ enum PushDeliveryStatus {
   FAILED
 }
 
+enum SlipCheck {
+  AUTO_OK
+  NEEDS_REVIEW
+}
+
 enum PaymentType {
   PROMPTPAY
   BANK
@@ -92,6 +97,9 @@ enum BankCode {
 model AppConfig {
   id               String   @id @default("singleton")
   memberTypeLabels Json?
+  // SlipOK free-tier guard: verifications used in slipokUsageMonth (YYYY-MM, Asia/Bangkok)
+  slipokUsageMonth String?
+  slipokUsageCount Int      @default(0)
   updatedAt        DateTime @updatedAt @db.Timestamptz(6)
   createdAt        DateTime @default(now()) @db.Timestamptz(6)
 }
@@ -133,9 +141,9 @@ model Event {
   eventDate   DateTime    @db.Timestamptz(6)
   status      EventStatus @default(ACTIVE)
   createdById String      @db.Uuid
-  createdAt    DateTime    @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime    @updatedAt @db.Timestamptz(6)
-  deletedAt    DateTime?   @db.Timestamptz(6)
+  createdAt   DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @db.Timestamptz(6)
+  deletedAt   DateTime?   @db.Timestamptz(6)
 
   createdBy   AdminUser    @relation("EventCreatedBy", fields: [createdById], references: [id])
   submissions Submission[]
@@ -204,22 +212,29 @@ model BillItem {
 }
 
 model BillShare {
-  id             String             @id @default(uuid()) @db.Uuid
-  billId         String             @db.Uuid
-  memberId       String             @db.Uuid
-  amount         Int
-  sharedAmount   Int                @default(0)
-  drinkAmount    Int                @default(0)
-  mixerAmount    Int                @default(0)
-  paymentStatus  PaymentStatus      @default(PENDING)
-  claimedAt      DateTime?          @db.Timestamptz(6)
-  claimNote      String?
-  paidAt         DateTime?          @db.Timestamptz(6)
-  pushStatus     PushDeliveryStatus @default(PENDING)
-  pushError      String?
-  pushSentAt     DateTime?          @db.Timestamptz(6)
-  createdAt      DateTime           @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime           @updatedAt @db.Timestamptz(6)
+  id                String             @id @default(uuid()) @db.Uuid
+  billId            String             @db.Uuid
+  memberId          String             @db.Uuid
+  amount            Int
+  sharedAmount      Int                @default(0)
+  drinkAmount       Int                @default(0)
+  mixerAmount       Int                @default(0)
+  paymentStatus     PaymentStatus      @default(PENDING)
+  claimedAt         DateTime?          @db.Timestamptz(6)
+  claimNote         String?
+  // Slip verification — image kept only while NEEDS_REVIEW, deleted on close/confirm
+  slipCheck         SlipCheck?
+  slipReviewReason  String?
+  slipTransRef      String?            @unique
+  slipAmount        Int?
+  slipTransferredAt DateTime?          @db.Timestamptz(6)
+  slipImagePath     String?
+  paidAt            DateTime?          @db.Timestamptz(6)
+  pushStatus        PushDeliveryStatus @default(PENDING)
+  pushError         String?
+  pushSentAt        DateTime?          @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(6)
 
   bill   Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)

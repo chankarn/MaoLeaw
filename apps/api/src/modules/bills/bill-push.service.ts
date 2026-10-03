@@ -116,7 +116,7 @@ export class BillPushService {
           { type: 'separator' },
           {
             type: 'text',
-            text: '📸 หลังโอนแล้ว ส่งรูปสลิปมาในแชทด้วยนะ',
+            text: '📸 โอนแล้วกด "ฉันโอนแล้ว" แล้วแนบสลิปในหน้าบิล ระบบจะตรวจให้อัตโนมัติ',
             size: 'sm',
             color: '#0369A1',
             wrap: true,

@@ -126,6 +126,15 @@ export class AdminBillsController {
     return this.bills.bulkMarkShares(id, body.shareIds, body.paymentStatus);
   }
 
+  /** Short-lived signed URL of a slip that needs review. */
+  @Get(':id/shares/:shareId/slip')
+  slip(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('shareId', ParseUUIDPipe) shareId: string,
+  ) {
+    return this.bills.getSlipImageUrl(id, shareId);
+  }
+
   @Post(':id/shares/:shareId/retry-push')
   @HttpCode(200)
   retryPush(

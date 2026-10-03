@@ -48,6 +48,10 @@ interface AdminBillDetail {
     paymentStatus: 'PENDING' | 'CLAIMED' | 'PAID';
     claimedAt: string | null;
     claimNote: string | null;
+    slipCheck: 'AUTO_OK' | 'NEEDS_REVIEW' | null;
+    slipReviewReason: string | null;
+    slipAmount: number | null;
+    slipImagePath: string | null;
     pushStatus: 'PENDING' | 'SENT' | 'FAILED';
     pushError: string | null;
     member: { id: string; customName: string; lineDisplayName: string; linePictureUrl: string | null };
@@ -178,5 +182,13 @@ export function useBulkMarkShares(billId: string) {
         body: JSON.stringify({ shareIds, paymentStatus: status }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-bill', billId] }),
+  });
+}
+
+/** Fetch a short-lived signed URL for a slip awaiting review. */
+export function useSlipImageUrl(billId: string) {
+  return useMutation({
+    mutationFn: (shareId: string) =>
+      apiFetch<{ url: string }>(`/admin/bills/${billId}/shares/${shareId}/slip`),
   });
 }
