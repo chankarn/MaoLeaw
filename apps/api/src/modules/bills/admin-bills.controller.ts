@@ -130,6 +130,13 @@ export class AdminBillsController {
     return this.bills.bulkMarkShares(id, body.shareIds, body.paymentStatus);
   }
 
+  /** Push a payment reminder to every PENDING member (1 push each). */
+  @Post(':id/remind')
+  @HttpCode(200)
+  remind(@Param('id', ParseUUIDPipe) id: string) {
+    return this.bills.remindUnpaid(id);
+  }
+
   /** Reject a CLAIMED payment → back to PENDING + LINE message to the member. */
   @Post(':id/shares/:shareId/reject')
   @HttpCode(200)

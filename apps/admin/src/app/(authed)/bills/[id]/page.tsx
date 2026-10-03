@@ -12,6 +12,7 @@ import {
   DollarSign,
   Edit2,
   Lock,
+  Megaphone,
   RefreshCcw,
   RotateCcw,
   Send,
@@ -30,11 +31,13 @@ import {
   useCloseBill,
   useDeleteBill,
   useMarkShare,
+  useRemindUnpaid,
   useResetToDraft,
   useRejectClaim,
   useRetryPush,
   useSendBill,
   useSlipImageUrl,
+  fetchLineQuota,
 } from '@/hooks/use-bills';
 import { cn, formatBaht, formatThaiDateTime } from '@/lib/utils';
 
@@ -55,6 +58,7 @@ export default function BillDetailPage() {
   const { data: bill, isLoading } = useAdminBill(id);
   const send = useSendBill(id);
   const close = useCloseBill(id);
+  const remind = useRemindUnpaid(id);
   const mark = useMarkShare(id);
   const bulkMark = useBulkMarkShares(id);
   const retry = useRetryPush(id);
@@ -122,6 +126,29 @@ export default function BillDetailPage() {
       toast.success(`ส่งแล้ว ${r.sent} คน${r.failed > 0 ? ` (ส่งไม่ถึง ${r.failed} คน)` : ''}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'ส่งไม่สำเร็จ');
+    }
+  }
+
+  async function handleRemind() {
+    const count = stats?.pendingCount ?? 0;
+    let quotaLine = '';
+    try {
+      const q = await fetchLineQuota();
+      quotaLine =
+        q.limit === null
+          ? `\nโควต้า push เดือนนี้: ใช้ไป ${q.used} (ไม่จำกัด)`
+          : `\nโควต้า push เดือนนี้: ใช้ไป ${q.used}/${q.limit} เหลือ ${Math.max(0, q.limit - q.used)}`;
+    } catch {
+      quotaLine = '\n(เช็คโควต้า LINE ไม่ได้)';
+    }
+    if (!confirm(`ส่งข้อความทวงเงินถึง ${count} คนที่ยังไม่จ่าย?\nใช้โควต้า push ${count} ข้อความ${quotaLine}`)) {
+      return;
+    }
+    try {
+      const r = await remind.mutateAsync();
+      toast.success(`ทวงแล้ว ${r.sent} คน${r.failed > 0 ? ` (ส่งไม่ถึง ${r.failed} คน)` : ''}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'ทวงเงินไม่สำเร็จ');
     }
   }
 
@@ -217,6 +244,17 @@ export default function BillDetailPage() {
             )}
             {bill.status === 'SENT' && (
               <>
+                {stats.pendingCount > 0 && (
+                  <Button
+                    variant="secondary"
+                    className="bg-white text-primary shadow hover:bg-amber-50"
+                    onClick={handleRemind}
+                    disabled={remind.isPending}
+                  >
+                    <Megaphone className="mr-1.5 h-4 w-4" />
+                    {remind.isPending ? 'กำลังส่ง…' : `ทวงเงิน (${stats.pendingCount})`}
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   className="bg-white text-primary shadow hover:bg-amber-50"

@@ -741,7 +741,7 @@ Used by cron-job.org to keep Render warm.
 }
 ```
 
-**Rate limit:** 500 msg/month (free tier).
+**Rate limit:** 300 push/month (LINE OA free, Thailand — verified via `GET /v2/bot/message/quota` on 2026-10-03). Admin sees usage via `GET /v1/admin/line/quota`.
 **Retry policy:** sync API call. On HTTP non-2xx, store `pushError` in `BillShare`; admin retries manually via `/retry-push`.
 
 #### LINE Login / LIFF SDK
@@ -1085,8 +1085,8 @@ GitHub PR
 
 #### 8.A.1 Overview
 - ไม่มี table ใหม่ — query จาก `Member → BillShare → Bill` (relations มีอยู่แล้ว)
-- **ไม่ต้องเพิ่ม env** — `LINE_CHANNEL_SECRET` มีอยู่แล้วใน `env.validation.ts` (PRD §11.2 ที่บอกว่า "env ใหม่" คลาดเคลื่อน — ใช้ตัวเดิมได้)
-- ข้อความ **reply** ผ่าน `/v2/bot/message/reply` = ฟรี ไม่กินโควต้า push 500/เดือน
+- **env ใหม่ `LINE_MESSAGING_SECRET`** — webhook มาจาก Messaging API channel ซึ่งมี channel secret ของตัวเอง; `LINE_CHANNEL_SECRET` เดิมเป็นของ LINE Login channel ใช้ verify ไม่ได้ (ฉบับก่อนของหัวข้อนี้เข้าใจผิด). ไม่ตั้ง = webhook ตอบ 503
+- ข้อความ **reply** ผ่าน `/v2/bot/message/reply` = ฟรี ไม่กินโควต้า push 300/เดือน
 
 #### 8.A.2 Sequence (Webhook → Reply)
 ```mermaid
@@ -1181,6 +1181,13 @@ crypto.createHmac('sha256', CHANNEL_SECRET).update(rawBody).digest('base64') ===
 | หลาย events/req | `Promise.allSettled(events.map(handleEvent))` |
 | member banned | reply ข้อความระงับ |
 | ไม่พบ member | reply ชวน register + ปุ่ม LIFF |
+
+#### 8.A.9 Implemented (2026-10-03)
+- `modules/line-webhook/`: `intent.ts` (`resolveIntent`, + คำว่า โอน/อีเว้นท์), `signature.ts` (HMAC verify แทน guard), `flex.ts` (debt/events/help/not-registered + **quick reply** chips ทุกข้อความ), `line-webhook.service.ts`, `line-webhook.controller.ts`
+- ตอบเฉพาะ 1-on-1 (`source.type = user`); event `follow` (เพิ่มเพื่อน) → help; ack 200 ทันทีแล้วค่อย reply แบบ async
+- `BillsService.getMyOutstanding(memberId)` — shares PENDING/CLAIMED บนบิล SENT
+- **ทวงเงิน:** `POST /v1/admin/bills/:id/remind` → push ถึงคนที่ยัง PENDING (ข้าม CLAIMED); `GET /v1/admin/line/quota` → `{limit, used}` แสดงใน confirm ก่อนส่ง
+- **ตั้งค่า LINE:** Messaging API → Webhook URL `https://<api>/v1/line/webhook` + Use webhook ON; LINE OA Manager → ปิด Auto-response (ไม่งั้นตอบซ้อน)
 
 ---
 

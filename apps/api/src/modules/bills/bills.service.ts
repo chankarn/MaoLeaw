@@ -360,6 +360,50 @@ export class BillsService {
     return prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status) });
   }
 
+  /** Unsettled shares on sent bills — what the member still owes (chat bot "บิล"). */
+  async getMyOutstanding(memberId: string) {
+    const shares = await prisma.billShare.findMany({
+      where: {
+        memberId,
+        paymentStatus: { in: ['PENDING', 'CLAIMED'] },
+        bill: { status: 'SENT', deletedAt: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { bill: { select: { name: true, event: { select: { id: true, name: true } } } } },
+    });
+    return shares.map((s) => ({
+      eventId: s.bill.event?.id ?? null,
+      title: s.bill.event?.name ?? s.bill.name,
+      amount: s.amount,
+      paymentStatus: s.paymentStatus as 'PENDING' | 'CLAIMED',
+    }));
+  }
+
+  /**
+   * Push a payment reminder to everyone still PENDING on a sent bill (CLAIMED members are
+   * waiting on the admin, so they're skipped). Each message uses one push from the quota.
+   */
+  async remindUnpaid(billId: string) {
+    const bill = await prisma.bill.findFirst({
+      where: { id: billId, deletedAt: null },
+      include: {
+        event: true,
+        shares: { where: { paymentStatus: 'PENDING' }, include: { member: true } },
+      },
+    });
+    if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
+    if (bill.status !== 'SENT') throw new ConflictException('ทวงเงินได้เฉพาะบิลที่ส่งแล้ว');
+
+    let sent = 0;
+    let failed = 0;
+    for (const share of bill.shares) {
+      const ok = await this.push.sendPaymentReminder(bill.event, share.amount, share.member);
+      if (ok) sent++;
+      else failed++;
+    }
+    return { sent, failed };
+  }
+
   /**
    * Admin rejects a payment claim: the share goes back to PENDING (slip forgotten, image
    * deleted) and the member gets a LINE message with the reason so they can resend.

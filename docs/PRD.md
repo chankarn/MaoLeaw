@@ -49,7 +49,7 @@
 | Admin Web | Desktop-first Responsive Web | Next.js 16 | Vercel (free) |
 | API | REST (JSON) | NestJS 11 | Render (free, มี cold start) |
 | Database | PostgreSQL 16 | Prisma ORM | Supabase (free, 500MB) |
-| Notification | LINE Messaging API (Push) | — | LINE OA (free 500 msg/เดือน) |
+| Notification | LINE Messaging API (Push) | — | LINE OA (free 300 push/เดือน — เช็คจริงผ่าน API 2026-10-03) |
 
 > **Note on cold start:** Render free tier sleep หลัง inactive 15 นาที → request แรกใช้ ~50s. แนะนำใช้ cron-job.org (ฟรี) ping `/health` ทุก 10 นาทีในช่วงเวลาใช้งาน (เช่น 17:00–02:00).
 
@@ -353,7 +353,7 @@ Admin กด "Send Bill" → backend:
   3. Log push result (success/fail) → admin เห็นในหน้า bill detail
 ```
 
-**Quota:** LINE OA free = 500 msg/เดือน → พอใช้สำหรับกลุ่ม ~50 คน × 10 events/เดือน.
+**Quota:** LINE OA free (ไทย) = 300 push/เดือน (เช็คจริงผ่าน `GET /v2/bot/message/quota` เมื่อ 2026-10-03) → ราว 30 คน × 10 บิล/เดือน. Reply (chat bot) ไม่นับโควต้า; admin ดูยอดใช้ได้ตอนกดทวงเงิน
 
 ---
 
@@ -493,7 +493,7 @@ erDiagram
 | Admin สร้าง item เหล้า แต่ไม่มีใครเลือกเหล้า | Allow แต่ flag warning + เงินก้อนนี้ admin รับผิดชอบเอง (หรือ skip — admin เลือก) |
 | Admin ลบ event ที่มี bill อยู่ | Block + แจ้ง "ต้องลบ bill ก่อน" |
 | 2 admin edit bill พร้อมกัน | Optimistic lock via `updatedAt`, last-write loses → reload prompt |
-| LINE push quota หมด (500/เดือน) | API คืน error → admin เห็น "quota หมด, ส่ง manual" + ปุ่ม copy ข้อความ |
+| LINE push quota หมด (300/เดือน) | API คืน error → admin เห็น "quota หมด, ส่ง manual" + ปุ่ม copy ข้อความ |
 | ลบ admin คนเดียวในระบบ | Block (ต้องมี ≥ 1 admin) |
 
 ### 5.3 Data Integrity
@@ -542,7 +542,7 @@ erDiagram
 | Vercel | 100GB bandwidth/mo | < 5GB |
 | Render | 750 hr/mo, sleep after 15min | OK with cron ping |
 | Supabase | 500MB DB, 1GB storage, pause after 7d inactive | DB ~20MB est., no storage upload (ใช้ Hybrid QR — fixed by default) |
-| LINE OA | 500 push msg/mo | ~50 msg/event × ~10 events = 500 ✓ |
+| LINE OA | 300 push msg/mo | บิล + ทวงเงิน + ตีกลับสลิป ≈ คนละ 1–3 ข้อความ/บิล — ทวงเงินให้ประหยัด |
 | LIFF | ฟรีไม่จำกัด | — |
 
 ---
@@ -585,7 +585,7 @@ erDiagram
 | LINE Profile | Cache `pictureUrl` + `displayName` in DB | offline-friendly, sync ทุก login |
 | Bill split (ไม่กินแอล) | default = จ่ายเฉพาะ shared items; admin add เข้า liquor/beer/mixer items เป็นรายตัวได้ (`extraMemberIds[]` ต่อ item) | Fair-by-default + ยืดหยุ่นสำหรับ edge cases (เช่น คนไม่กินแอลแต่กินโซดา) — control อยู่ที่ admin ตอนสร้างบิล ไม่ต้องถาม user ตอน submit |
 | Bill split (อาหารเฉพาะกลุ่ม) | type `custom` — admin เลือกรายชื่อคนที่ร่วมหารอิสระ (`customMemberIds[]`) | รองรับอาหารที่สั่งเฉพาะบางโต๊ะ/บางคน โดยไม่ผูกกับประเภทเครื่องดื่ม |
-| Notification | LINE Push (Messaging API) | Native UX, ฟรี 500/เดือน |
+| Notification | LINE Push (Messaging API) | Native UX, ฟรี 300/เดือน |
 | Edit submission | แก้ได้ระหว่างบิลยัง DRAFT (ระบบคำนวณ share ใหม่อัตโนมัติ); ล็อกเมื่อส่งบิล (SENT) | ยอดที่ push ไปแล้วไม่เปลี่ยนเงียบๆ; member ไม่เห็นบิล DRAFT |
 | Hosting | Vercel + Render + Supabase | ฟรี 100% (มี cold-start trade-off) |
 
@@ -628,7 +628,7 @@ erDiagram
 | Metric | Target |
 |---|---|
 | Bot reply latency (p95) | < 1.5s (ภายใน LINE reply token 30s window) |
-| LINE Push quota usage | คงอยู่ใน free 500/เดือน (bot ใช้ **reply** ไม่กินโควต้า) |
+| LINE Push quota usage | คงอยู่ใน free 300/เดือน (bot ใช้ **reply** ไม่กินโควต้า) |
 | Standalone bill adoption | ≥ 30% ของบิลใหม่หลัง launch เป็นแบบ standalone |
 | Bot command success rate | ≥ 95% (ไม่ error / ตอบถูก intent) |
 
@@ -644,7 +644,7 @@ erDiagram
 ### 11.2 F-7: Chat Command Bot (1-on-1 Reply)
 
 **Actor:** Member (LIFF, registered — ผูกผ่าน `lineUserId`)
-**Channel:** LINE 1-on-1 chat กับ OA · **Message type:** Reply (ฟรี ไม่กินโควต้า 500/เดือน)
+**Channel:** LINE 1-on-1 chat กับ OA · **Message type:** Reply (ฟรี ไม่กินโควต้า 300/เดือน)
 
 #### Functional Workflow
 ```
@@ -675,7 +675,7 @@ LINE → POST /v1/line/webhook (มี X-Line-Signature)
 
 #### Data Requirements
 - ไม่มี model ใหม่ — query จาก `Member` → `BillShare` → `Bill` (relation มีอยู่แล้ว)
-- **Env:** `LINE_CHANNEL_SECRET` (จำเป็นสำหรับ signature verify) — มีอยู่ใน `env.validation.ts` แล้ว ไม่ต้องเพิ่ม (ดู SA §8.A.1)
+- **Env:** `LINE_MESSAGING_SECRET` — channel secret ของ **Messaging API channel** (คนละตัวกับ `LINE_CHANNEL_SECRET` ที่เป็นของ LINE Login channel) ใช้ verify signature (ดู SA §8.A.1)
 
 #### Edge Cases & Exception Handling
 | กรณี | พฤติกรรม |
@@ -690,7 +690,7 @@ LINE → POST /v1/line/webhook (มี X-Line-Signature)
 
 #### Non-Functional
 - **Security:** signature verify บังคับ; ต้องอ่าน **raw body** (ตั้ง `rawBody:true` ใน `main.ts` — JSON parser ปกติจะทำให้ verify ไม่ผ่าน)
-- **Cost:** reply = ฟรีไม่จำกัด → ไม่กระทบโควต้า push 500/เดือน
+- **Cost:** reply = ฟรีไม่จำกัด → ไม่กระทบโควต้า push 300/เดือน
 - **Perf:** ตอบภายใน 30s window; query ยอดค้างต้อง index `BillShare.memberId` + `paymentStatus` (มี `@@index([memberId])` แล้ว)
 
 ---

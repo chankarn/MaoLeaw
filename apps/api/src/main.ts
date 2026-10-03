@@ -13,7 +13,8 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  // rawBody: the LINE webhook verifies its HMAC signature over the exact request bytes.
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
 
   app.setGlobalPrefix('v1');
   app.use(helmet());

@@ -17,6 +17,10 @@ export const configValidationSchema = z.object({
   LINE_CHANNEL_ID: z.string().min(1),
   LINE_CHANNEL_SECRET: z.string().min(1),
   LINE_MESSAGING_TOKEN: z.string().min(1),
+  // Messaging API channel secret — verifies chat-bot webhook signatures. Not the same as
+  // LINE_CHANNEL_SECRET (that one belongs to the LINE Login channel). Optional: without it
+  // the webhook rejects every request.
+  LINE_MESSAGING_SECRET: z.string().optional(),
   LIFF_ID: z.string().min(1),
 
   PROMPTPAY_ID: z.string().min(4),

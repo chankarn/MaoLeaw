@@ -11,5 +11,6 @@ import { SlipsModule } from '../slips/slips.module';
   imports: [AuthModule, SlipsModule],
   controllers: [BillsController, AdminBillsController],
   providers: [BillsService, BillPushService],
+  exports: [BillsService],
 })
 export class BillsModule {}

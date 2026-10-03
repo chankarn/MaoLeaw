@@ -205,3 +205,16 @@ export function useRejectClaim(billId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-bill', billId] }),
   });
 }
+
+/** Push a payment reminder to every member still PENDING on this bill. */
+export function useRemindUnpaid(billId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ sent: number; failed: number }>(`/admin/bills/${billId}/remind`, { method: 'POST' }),
+  });
+}
+
+/** This month's LINE push quota (limit null = unlimited plan). */
+export function fetchLineQuota() {
+  return apiFetch<{ limit: number | null; used: number }>('/admin/line/quota');
+}

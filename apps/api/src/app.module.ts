@@ -11,6 +11,7 @@ import { BillsModule } from './modules/bills/bills.module';
 import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
 import { AdminSettingsModule } from './modules/admin-settings/admin-settings.module';
 import { HealthModule } from './modules/health/health.module';
+import { LineWebhookModule } from './modules/line-webhook/line-webhook.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { configValidationSchema } from './config/env.validation';
 
@@ -42,6 +43,7 @@ import { configValidationSchema } from './config/env.validation';
     AdminDashboardModule,
     AdminSettingsModule,
     HealthModule,
+    LineWebhookModule,
   ],
   providers: [
     {

@@ -103,4 +103,42 @@ export class LineService {
       throw new Error(`LINE push failed: ${res.status} ${body}`);
     }
   }
+
+  /**
+   * Answer a webhook event. Reply messages are free (don't count toward the monthly
+   * push quota) but the token is single-use and expires shortly after the event.
+   */
+  async sendReply(replyToken: string, messages: unknown[]): Promise<void> {
+    if (this.cfg.get<string>('E2E_TEST_MODE') === 'true') {
+      this.logger.warn(`E2E bypass: skipping LINE reply (${messages.length} message(s))`);
+      return;
+    }
+    const token = this.cfg.getOrThrow<string>('LINE_MESSAGING_TOKEN');
+    const res = await fetch('https://api.line.me/v2/bot/message/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ replyToken, messages }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`LINE reply failed: ${res.status} ${body}`);
+    }
+  }
+
+  /** This month's push quota: `limit` is null when the plan is unlimited. */
+  async getPushQuota(): Promise<{ limit: number | null; used: number }> {
+    if (this.cfg.get<string>('E2E_TEST_MODE') === 'true') return { limit: 300, used: 0 };
+    const token = this.cfg.getOrThrow<string>('LINE_MESSAGING_TOKEN');
+    const headers = { Authorization: `Bearer ${token}` };
+    const [quotaRes, usageRes] = await Promise.all([
+      fetch('https://api.line.me/v2/bot/message/quota', { headers }),
+      fetch('https://api.line.me/v2/bot/message/quota/consumption', { headers }),
+    ]);
+    if (!quotaRes.ok || !usageRes.ok) {
+      throw new Error(`LINE quota lookup failed: ${quotaRes.status}/${usageRes.status}`);
+    }
+    const quota = (await quotaRes.json()) as { type: 'none' | 'limited'; value?: number };
+    const usage = (await usageRes.json()) as { totalUsage: number };
+    return { limit: quota.type === 'limited' ? (quota.value ?? null) : null, used: usage.totalUsage };
+  }
 }

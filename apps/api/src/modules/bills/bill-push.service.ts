@@ -70,6 +70,75 @@ export class BillPushService {
     }
   }
 
+  /** Friendly nudge to pay. Best-effort: returns false on failure. */
+  async sendPaymentReminder(
+    event: { id: string; name: string },
+    amount: number,
+    member: { lineUserId: string },
+  ): Promise<boolean> {
+    const liffId = this.cfg.getOrThrow<string>('LIFF_ID');
+    const deepLink = `https://liff.line.me/${liffId}/events/${event.id}/bill`;
+    const contents = {
+      type: 'bubble',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        contents: [
+          { type: 'text', text: 'อย่าลืมโอนนะ 🙏', weight: 'bold', size: 'lg' },
+          { type: 'text', text: event.name, size: 'sm', color: '#78716C', wrap: true },
+          { type: 'separator' },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              { type: 'text', text: 'ยอดที่ยังค้าง', size: 'sm', color: '#78716C' },
+              {
+                type: 'text',
+                text: `฿${amount.toLocaleString('th-TH')}`,
+                size: 'xl',
+                weight: 'bold',
+                align: 'end',
+                color: '#D97706',
+              },
+            ],
+          },
+          {
+            type: 'text',
+            text: 'โอนเสร็จ กด "ฉันโอนแล้ว" แล้วแนบสลิปในหน้าบิลได้เลย',
+            size: 'xs',
+            color: '#78716C',
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: '#D97706',
+            action: { type: 'uri', label: 'ดูบิล + QR', uri: deepLink },
+          },
+        ],
+      },
+    };
+
+    try {
+      await this.line.sendPushFlex(
+        member.lineUserId,
+        `อย่าลืมโอนค่า ${event.name} ฿${amount.toLocaleString('th-TH')}`,
+        contents,
+      );
+      return true;
+    } catch (err) {
+      this.logger.error(`Reminder failed for ${member.lineUserId}`, err);
+      return false;
+    }
+  }
+
   /**
    * Tell a member their payment claim was rejected so they can resend a slip.
    * Best-effort: returns false on failure and leaves the bill push status untouched.
