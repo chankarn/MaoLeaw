@@ -2,6 +2,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@maoleaw/db';
 import type {
+  BillStatus,
   AttendeeDto,
   CreateEventInput,
   DrinkChoice,
@@ -25,7 +26,7 @@ export class EventsService {
       include: {
         _count: { select: { submissions: true } },
         submissions: { where: { memberId }, select: { id: true } },
-        bill: { select: { id: true } },
+        bill: { select: { status: true } },
       },
     });
 
@@ -37,7 +38,7 @@ export class EventsService {
       status: e.status,
       attendeeCount: e._count.submissions,
       hasSubmitted: e.submissions.length > 0,
-      hasBill: e.bill !== null,
+      hasBill: isBillVisible(e.bill),
     }));
   }
 
@@ -51,7 +52,7 @@ export class EventsService {
       include: {
         _count: { select: { submissions: true } },
         submissions: { where: { memberId }, select: { id: true } },
-        bill: { select: { id: true } },
+        bill: { select: { status: true } },
       },
     });
 
@@ -63,7 +64,7 @@ export class EventsService {
       status: e.status,
       attendeeCount: e._count.submissions,
       hasSubmitted: e.submissions.length > 0,
-      hasBill: e.bill !== null,
+      hasBill: isBillVisible(e.bill),
     }));
   }
 
@@ -112,8 +113,9 @@ export class EventsService {
         eventDate: event.eventDate.toISOString(),
         status: event.status,
         isPast: event.eventDate.getTime() < Date.now(),
-        hasBill: event.bill !== null,
+        hasBill: isBillVisible(event.bill),
         billClosed: event.bill?.status === 'CLOSED',
+        billLocked: event.bill?.status === 'SENT' || event.bill?.status === 'CLOSED',
       },
       stats,
       attendees,
@@ -258,4 +260,9 @@ export class EventsService {
       none: { count: none, percent: pct(none) },
     };
   }
+}
+
+/** Members only see a bill once it is sent — DRAFT amounts can still change. */
+function isBillVisible(bill: { status: BillStatus } | null): boolean {
+  return bill !== null && bill.status !== 'DRAFT';
 }

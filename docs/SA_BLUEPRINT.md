@@ -916,14 +916,15 @@ export function calculateBill(items: Item[], attendees: Attendee[]): {
 
 **Bill:**
 ```
-DRAFT --[POST /send + push success]--> SENT --[POST /close]--> CLOSED
+DRAFT --[POST /send]--> SENT --[POST /close]--> CLOSED   (send only from DRAFT, close only from SENT; 409 otherwise)
+SENT  --[POST /reset-to-draft]--> DRAFT
 DRAFT --[DELETE]--> deleted
 SENT  --[DELETE blocked unless force]--> ...
 ```
 
 **Submission editability:**
-- Editable while `event.bill IS NULL OR event.bill.status IN ('DRAFT', 'SENT')`
-- Locked when `event.bill.status = 'CLOSED'`
+- Editable while `event.bill IS NULL OR event.bill.status = 'DRAFT'` — each edit re-computes the DRAFT bill's shares (also re-computed on send)
+- Locked when `event.bill.status IN ('SENT', 'CLOSED')` (409); members only see a bill via `/my-bill` once SENT
 
 ### 5.3 Indexing & Performance
 

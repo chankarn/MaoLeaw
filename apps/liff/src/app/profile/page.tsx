@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BottomTab } from '@/components/bottom-tab';
-import { DRINK_PREFERENCES, MAX_CUSTOM_NAME_LENGTH, MEMBER_TYPES } from '@maoleaw/shared';
+import { DRINK_PREFERENCES, MAX_CUSTOM_NAME_LENGTH } from '@maoleaw/shared';
+import { useMemberTypes } from '@/hooks/use-member-types';
 import type { DrinkPreference, MemberType } from '@maoleaw/shared';
 import { useMe } from '@/hooks/use-auth';
 import { useUpdateMember } from '@/hooks/use-member';
@@ -17,6 +18,7 @@ import { useUpdateMember } from '@/hooks/use-member';
 export default function ProfilePage() {
   const { data: me, isLoading } = useMe();
   const { mutateAsync, isPending } = useUpdateMember();
+  const { types: memberTypes, labelOf } = useMemberTypes();
 
   const [customName, setCustomName] = useState('');
   const [preferredDrink, setPreferredDrink] = useState<DrinkPreference | ''>('');
@@ -55,7 +57,7 @@ export default function ProfilePage() {
     }
   }
 
-  const typeLabel = MEMBER_TYPES.find((t) => t.value === me.memberType)?.label ?? '';
+  const typeLabel = labelOf(me.memberType);
 
   return (
     <>
@@ -122,7 +124,7 @@ export default function ProfilePage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MEMBER_TYPES.map((t) => (
+                  {memberTypes.map((t) => (
                     <SelectItem key={t.value} value={t.value}>
                       {t.label}
                     </SelectItem>

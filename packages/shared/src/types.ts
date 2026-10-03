@@ -60,8 +60,11 @@ export interface EventDetailDto {
     eventDate: string;
     status: EventStatus;
     isPast: boolean;
+    /** True only once the bill is visible to members (SENT or CLOSED). */
     hasBill: boolean;
     billClosed: boolean;
+    /** Submissions are locked once the bill is SENT (and stay locked when CLOSED). */
+    billLocked: boolean;
   };
   stats: EventStatsDto;
   attendees: AttendeeDto[];

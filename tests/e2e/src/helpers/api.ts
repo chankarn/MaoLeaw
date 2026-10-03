@@ -118,7 +118,17 @@ export async function createBill(
     items: { name: string; price: number; itemType: 'LIQUOR' | 'BEER' | 'SHARED' }[];
   },
 ): Promise<{ id: string }> {
-  return apiCall('/admin/bills', { method: 'POST', body: input, token });
+  // paymentType is required by createBillSchema — default to a PromptPay test ID.
+  return apiCall('/admin/bills', {
+    method: 'POST',
+    body: { paymentType: 'PROMPTPAY', promptpayId: '0812345678', ...input },
+    token,
+  });
+}
+
+/** Close a SENT bill (admin). */
+export async function closeBill(token: string, billId: string) {
+  return apiCall(`/admin/bills/${billId}/close`, { method: 'POST', token });
 }
 
 /** Send bill notifications. */

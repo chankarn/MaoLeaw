@@ -17,7 +17,8 @@ import { useEventDetail } from '@/hooks/use-events';
 import { useMe } from '@/hooks/use-auth';
 import { useSubmitAttendance } from '@/hooks/use-submission';
 import { cn } from '@/lib/utils';
-import { MEMBER_TYPES, type DrinkChoice, type MemberType } from '@maoleaw/shared';
+import type { DrinkChoice, MemberType } from '@maoleaw/shared';
+import { useMemberTypes } from '@/hooks/use-member-types';
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ export default function EventDetailPage() {
   const [open, setOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<MemberType | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const { types: memberTypes, labelOf: memberTypeLabel } = useMemberTypes();
 
   useEffect(() => {
     if (data?.event.isPast && data.event.hasBill) {
@@ -173,7 +175,7 @@ export default function EventDetailPage() {
               <FilterChip active={typeFilter === null} onClick={() => setTypeFilter(null)}>
                 ทั้งหมด · {attendees.length}
               </FilterChip>
-              {MEMBER_TYPES.filter((t) => availableTypes.includes(t.value)).map((t) => {
+              {memberTypes.filter((t) => availableTypes.includes(t.value)).map((t) => {
                 const count = attendees.filter((a) => a.memberType === t.value).length;
                 return (
                   <FilterChip
@@ -290,13 +292,15 @@ export default function EventDetailPage() {
           size="lg"
           className="w-full shadow-md"
           onClick={() => setOpen(true)}
-          disabled={event.billClosed}
+          disabled={event.billLocked}
         >
           {event.billClosed
             ? '🔒 ปิดบิลแล้ว — แก้ไม่ได้'
-            : mySubmission
-              ? '✏️  แก้ไขการเข้าร่วม'
-              : '🎉 เข้าร่วมงาน'}
+            : event.billLocked
+              ? '🔒 ส่งบิลแล้ว — แก้ไม่ได้'
+              : mySubmission
+                ? '✏️  แก้ไขการเข้าร่วม'
+                : '🎉 เข้าร่วมงาน'}
         </Button>
       </div>
 
@@ -382,10 +386,6 @@ function drinkEmoji(c: DrinkChoice): string {
 
 function drinkText(c: DrinkChoice): string {
   return c === 'LIQUOR' ? 'เหล้า' : c === 'BEER' ? 'เบียร์' : 'ไม่กินแอลกอฮอล์';
-}
-
-function memberTypeLabel(t: MemberType): string {
-  return MEMBER_TYPES.find((m) => m.value === t)?.label ?? t;
 }
 
 function FilterChip({

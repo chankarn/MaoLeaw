@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MEMBER_TYPES, DRINK_PREFERENCES, MAX_CUSTOM_NAME_LENGTH } from '@maoleaw/shared';
+import { DRINK_PREFERENCES, MAX_CUSTOM_NAME_LENGTH } from '@maoleaw/shared';
+import { useMemberTypes } from '@/hooks/use-member-types';
 import type { DrinkPreference, MemberType } from '@maoleaw/shared';
 import { useLineProfile } from '@/hooks/use-auth';
 import { useRegisterMember } from '@/hooks/use-member';
@@ -18,6 +19,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { data: profile, isLoading: profileLoading } = useLineProfile();
   const { mutateAsync: register, isPending } = useRegisterMember();
+  const { types: memberTypes } = useMemberTypes();
 
   const [customName, setCustomName] = useState('');
   const [preferredDrink, setPreferredDrink] = useState<DrinkPreference | ''>('');
@@ -146,7 +148,7 @@ export default function RegisterPage() {
                 <SelectValue placeholder="เลือกประเภท" />
               </SelectTrigger>
               <SelectContent>
-                {MEMBER_TYPES.map((t) => (
+                {memberTypes.map((t) => (
                   <SelectItem key={t.value} value={t.value}>
                     {t.label}
                   </SelectItem>

@@ -482,7 +482,7 @@ erDiagram
 | Network offline | Toast "ไม่มี internet" + cache last response สำหรับ Main page |
 | User ถูก ban (`banned = true`) | Login OK แต่ทุก API คืน 403 + แสดงหน้า "บัญชีถูกระงับ" |
 | Event ถูก delete ระหว่าง user อยู่ในหน้า | API คืน 404 → toast + redirect Main |
-| Submit เครื่องดื่มหลังบิลปิด (`status = closed`) | API คืน 409 → toast "ปิดบิลแล้ว แก้ไม่ได้" |
+| Submit เครื่องดื่มหลังส่งบิล (`status = sent` หรือ `closed`) | API คืน 409 → ปุ่มเข้าร่วมถูกล็อก "ส่งบิลแล้ว — แก้ไม่ได้" (ถ้าต้องแก้ admin กด Reset to Draft) |
 | Concurrent submission (user open 2 tab) | Use `updatedAt` optimistic lock → second submit เตือน "มีการอัพเดทใหม่" |
 
 ### 5.2 Admin Edge Cases
@@ -586,7 +586,7 @@ erDiagram
 | Bill split (ไม่กินแอล) | default = จ่ายเฉพาะ shared items; admin add เข้า liquor/beer/mixer items เป็นรายตัวได้ (`extraMemberIds[]` ต่อ item) | Fair-by-default + ยืดหยุ่นสำหรับ edge cases (เช่น คนไม่กินแอลแต่กินโซดา) — control อยู่ที่ admin ตอนสร้างบิล ไม่ต้องถาม user ตอน submit |
 | Bill split (อาหารเฉพาะกลุ่ม) | type `custom` — admin เลือกรายชื่อคนที่ร่วมหารอิสระ (`customMemberIds[]`) | รองรับอาหารที่สั่งเฉพาะบางโต๊ะ/บางคน โดยไม่ผูกกับประเภทเครื่องดื่ม |
 | Notification | LINE Push (Messaging API) | Native UX, ฟรี 500/เดือน |
-| Edit submission | แก้ได้จนกว่า admin จะปิดบิล | Flexible |
+| Edit submission | แก้ได้ระหว่างบิลยัง DRAFT (ระบบคำนวณ share ใหม่อัตโนมัติ); ล็อกเมื่อส่งบิล (SENT) | ยอดที่ push ไปแล้วไม่เปลี่ยนเงียบๆ; member ไม่เห็นบิล DRAFT |
 | Hosting | Vercel + Render + Supabase | ฟรี 100% (มี cold-start trade-off) |
 
 ---

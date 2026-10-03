@@ -13,6 +13,7 @@ import {
   type UpdateBillInput,
 } from '@maoleaw/shared';
 import { BillPushService } from './bill-push.service';
+import { recomputeDraftShares } from './recompute-shares';
 
 @Injectable()
 export class BillsService {
@@ -102,7 +103,7 @@ export class BillsService {
       drinkChoice: s.drinkChoice,
     }));
 
-    // Compute share preview (we'll re-compute on send/close — Draft items are mutable).
+    // Initial snapshot — re-computed while DRAFT on attendance changes and again on send.
     const itemsForCalc = input.items.map((it, idx) => ({
       id: `tmp-${idx}`,
       price: it.price,
@@ -159,6 +160,7 @@ export class BillsService {
     });
     if (!bill) throw new NotFoundException('Bill not found');
     if (bill.status !== 'DRAFT') throw new ConflictException('Only DRAFT bills can be edited');
+    validatePaymentPatch(input);
 
     return prisma.$transaction(async (tx) => {
       // Update scalar fields (name + payment) if provided
@@ -269,8 +271,14 @@ export class BillsService {
   }
 
   async send(billId: string) {
+    const draft = await prisma.bill.findFirst({ where: { id: billId, deletedAt: null } });
+    if (!draft) throw new NotFoundException('Bill not found');
+    if (draft.status !== 'DRAFT') {
+      throw new ConflictException('Only DRAFT bills can be sent — use retry-push for failed shares');
+    }
+    // Snapshot shares against the final attendee list before members are notified.
+    await prisma.$transaction((tx) => recomputeDraftShares(tx, billId));
     const bill = await this.getAdminDetail(billId);
-    if (bill.status === 'CLOSED') throw new ConflictException('Bill already closed');
 
     const results = await this.push.sendBillNotifications(bill);
 
@@ -285,6 +293,7 @@ export class BillsService {
   async close(billId: string) {
     const bill = await prisma.bill.findUnique({ where: { id: billId } });
     if (!bill) throw new NotFoundException('Bill not found');
+    if (bill.status !== 'SENT') throw new ConflictException('Only SENT bills can be closed');
     return prisma.bill.update({
       where: { id: billId },
       data: { status: 'CLOSED', closedAt: new Date() },
@@ -326,34 +335,29 @@ export class BillsService {
     status: 'PENDING' | 'CLAIMED' | 'PAID',
   ) {
     if (shareIds.length === 0) return { count: 0 };
-    const data: Record<string, unknown> = { paymentStatus: status };
-    if (status === 'PAID') data.paidAt = new Date();
-    if (status === 'PENDING') {
-      data.paidAt = null;
-      data.claimedAt = null;
-      data.claimNote = null;
-    }
     const result = await prisma.billShare.updateMany({
       where: { id: { in: shareIds }, billId },
-      data,
+      data: shareStatusPatch(status),
     });
     return { count: result.count };
   }
 
-  async markShare(shareId: string, status: 'PENDING' | 'CLAIMED' | 'PAID') {
-    const data: Record<string, unknown> = { paymentStatus: status };
-    if (status === 'PAID') data.paidAt = new Date();
-    if (status === 'PENDING') {
-      data.paidAt = null;
-      data.claimedAt = null;
-      data.claimNote = null;
-    }
-    return prisma.billShare.update({ where: { id: shareId }, data });
+  async markShare(billId: string, shareId: string, status: 'PENDING' | 'CLAIMED' | 'PAID') {
+    const share = await prisma.billShare.findUnique({ where: { id: shareId }, select: { billId: true } });
+    if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
+    return prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status) });
   }
 
   async claimPaid(eventId: string, memberId: string, note: string | null | undefined) {
     const bill = await prisma.bill.findFirst({ where: { eventId, deletedAt: null } });
-    if (!bill) throw new NotFoundException('No bill');
+    if (!bill || bill.status === 'DRAFT') throw new NotFoundException('No bill');
+    if (bill.status === 'CLOSED') throw new ConflictException('Bill closed');
+    const share = await prisma.billShare.findUnique({
+      where: { billId_memberId: { billId: bill.id, memberId } },
+    });
+    if (!share) throw new NotFoundException('You are not part of this bill');
+    // Never downgrade an admin-confirmed payment back to CLAIMED.
+    if (share.paymentStatus === 'PAID') throw new ConflictException('Already marked as paid');
     return prisma.billShare.update({
       where: { billId_memberId: { billId: bill.id, memberId } },
       data: {
@@ -370,6 +374,7 @@ export class BillsService {
       include: { bill: { include: { event: true } }, member: true },
     });
     if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
+    if (share.bill.status !== 'SENT') throw new ConflictException('Only SENT bills can be pushed');
 
     const ok = await this.push.sendShareNotification(share.bill, share.bill.event, share, share.member);
     return ok;
@@ -383,7 +388,8 @@ export class BillsService {
         event: { include: { submissions: true } },
       },
     });
-    if (!bill) throw new NotFoundException('No bill for this event');
+    // DRAFT amounts can still change — members only see a bill once it is sent.
+    if (!bill || bill.status === 'DRAFT') throw new NotFoundException('No bill for this event');
 
     const share = await prisma.billShare.findUnique({
       where: { billId_memberId: { billId: bill.id, memberId } },
@@ -451,6 +457,25 @@ export class BillsService {
     };
   }
 
+}
+
+function shareStatusPatch(status: 'PENDING' | 'CLAIMED' | 'PAID') {
+  if (status === 'PAID') return { paymentStatus: status, paidAt: new Date() };
+  if (status === 'CLAIMED') return { paymentStatus: status, paidAt: null, claimedAt: new Date() };
+  return { paymentStatus: status, paidAt: null, claimedAt: null, claimNote: null };
+}
+
+/** A payment-type switch must carry that channel's fields (create enforces this via schema). */
+function validatePaymentPatch(input: UpdateBillInput) {
+  if (input.paymentType === 'PROMPTPAY' && !input.promptpayId) {
+    throw new BadRequestException('promptpayId is required for PROMPTPAY');
+  }
+  if (
+    input.paymentType === 'BANK' &&
+    (!input.bankCode || !input.bankAccountNumber || !input.bankAccountName)
+  ) {
+    throw new BadRequestException('bankCode, bankAccountNumber and bankAccountName are required for BANK');
+  }
 }
 
 /** Validates extraMemberIds and customMemberIds against the event's attendee list. */
