@@ -1,0 +1,19 @@
+{
+  "name": "maoleaw-promo-video",
+  "private": true,
+  "description": "30s 9:16 promo video for MaoLeaw (Remotion). Not part of the pnpm workspace.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Promo out/maoleaw-promo.mp4",
+    "still": "remotion still Promo out/still.png"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.532",
+    "@remotion/google-fonts": "^4.0.532",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.532",
+    "typescript": "^7.0.2"
+  }
+}
