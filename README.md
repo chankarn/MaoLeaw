@@ -160,13 +160,17 @@ Each Next.js app is a Vercel project rooted at `apps/liff` / `apps/admin`:
 
 ### Keeping Render free tier warm
 
-Render free spins down after 15 min idle. Avoid 50s cold starts by pinging `/v1/health`:
+Render free spins down after 15 min idle, and Supabase free pauses after 7 days without
+**database** activity. `.github/workflows/keep-warm.yml` handles both by pinging
+`/v1/health/db` (runs `SELECT 1`) — plain `/v1/health` does not touch the DB, so it will
+not keep Supabase alive.
 
-1. Create a free job at https://cron-job.org
-2. URL: `https://<your-render>.onrender.com/v1/health`
-3. Schedule: every 10 minutes, 17:00–02:00 Asia/Bangkok
-
-Also ping at least once every 6 days to keep Supabase free from auto-pausing.
+- Repo secrets: `API_URL` (required, e.g. `https://<your-render>.onrender.com`) and
+  `DATABASE_URL` (optional — direct DB ping fallback when Render is down).
+- GitHub disables schedules in public repos after 60 days of no activity; the workflow
+  re-enables itself each run. If it ever shows "disabled", re-enable it under
+  **Actions → Keep API Warm → Enable workflow**.
+- Optional backup: a free https://cron-job.org job hitting the same `/v1/health/db` URL.
 
 ---
 

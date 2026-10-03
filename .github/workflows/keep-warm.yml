@@ -1,5 +1,10 @@
 # File: .github/workflows/keep-warm.yml
-# Ping Render API every ~12 min to prevent free-tier spin-down (15 min idle).
+# Keeps the free tiers alive:
+#   - Render spins the API down after 15 min idle → ping it.
+#   - Supabase pauses the project after 7 days without DB activity → the ping must
+#     actually query the DB (/v1/health/db runs SELECT 1; plain /v1/health does not).
+# GitHub disables scheduled workflows in public repos after 60 days without repo
+# activity, so the last step re-enables this workflow through the API each run.
 name: Keep API Warm
 
 on:
@@ -7,12 +12,17 @@ on:
     - cron: '*/12 * * * *'
   workflow_dispatch:
 
+permissions:
+  actions: write
+
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Ping /v1/health (with retry for cold start)
+      - name: Ping /v1/health/db (wakes Render + touches Supabase)
+        id: api
+        continue-on-error: true
         run: |
           if [ -z "${{ secrets.API_URL }}" ]; then
             echo "::error::API_URL secret not set"
@@ -20,7 +30,7 @@ jobs:
           fi
           for attempt in 1 2 3; do
             echo "Attempt $attempt..."
-            status=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 90 "${{ secrets.API_URL }}/v1/health")
+            status=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 90 "${{ secrets.API_URL }}/v1/health/db")
             echo "HTTP $status"
             cat /tmp/body
             if [ "$status" = "200" ]; then
@@ -32,3 +42,25 @@ jobs:
           done
           echo "::error::Health check failed after 3 attempts"
           exit 1
+
+      # Fallback so Supabase stays active even when Render is down.
+      # Optional: set the DATABASE_URL secret to enable it.
+      - name: Direct DB ping (fallback)
+        if: steps.api.outcome != 'success'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::warning::DATABASE_URL secret not set — skipping direct DB ping"
+            exit 0
+          fi
+          psql "${DATABASE_URL%%\?*}" -tAc 'SELECT 1'
+
+      - name: Keep this schedule from being disabled for inactivity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/keep-warm.yml/enable"
+
+      - name: Fail if API ping failed
+        if: steps.api.outcome != 'success'
+        run: exit 1
