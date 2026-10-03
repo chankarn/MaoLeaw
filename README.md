@@ -80,7 +80,7 @@ pnpm db:migrate          # run initial migration (dev)
 pnpm db:seed             # create first admin user from ADMIN_SEED_*
 ```
 
-> For Supabase prod / Render deploy use `pnpm db:deploy` instead of `db:migrate`.
+> Production (Render) applies migrations automatically on container start — see Deployment below.
 
 ### 4. Run everything
 
@@ -152,11 +152,9 @@ Each Next.js app is a Vercel project rooted at `apps/liff` / `apps/admin`:
 
 ### Render (API)
 
-- **Root:** `apps/api`
-- **Build:** `cd ../.. && pnpm install --frozen-lockfile && pnpm db:generate && pnpm --filter @maoleaw/api build`
-- **Start:** `cd ../../apps/api && node dist/main.js`
+- **Runtime:** Docker — `apps/api/Dockerfile`, build context = repo root (see `render.yaml`)
 - **Env vars:** all server vars from `.env.example`
-- **Pre-deploy hook:** `pnpm db:deploy` (runs migrations against prod DB)
+- **Migrations:** applied automatically — the Docker `CMD` runs `prisma migrate deploy` before starting the API (needs `DIRECT_URL`). A failed migration stops the new container and Render keeps the previous deploy live.
 
 ### Keeping Render free tier warm
 
