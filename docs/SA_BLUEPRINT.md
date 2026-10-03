@@ -1341,6 +1341,7 @@ API (BillsService.claimPaid):
 |---|---|---|
 | POST | `/v1/events/:id/my-bill/claim` | multipart `slip` (image ≤5MB, required) + `note`; คืน `ClaimResultDto` |
 | GET | `/v1/admin/bills/:id/shares/:shareId/slip` | `{ url }` signed URL อายุ 5 นาที |
+| POST | `/v1/admin/bills/:id/shares/:shareId/reject` | `{ reason? }` — ตีกลับ CLAIMED → PENDING (ล้างสลิป+ลบรูป) แล้ว push Flex แจ้งผู้ใช้พร้อมเหตุผล; คืน `{ pushed }` (ใช้โควต้า push 1 ข้อความ) |
 
 Admin mark PENDING ล้างข้อมูลสลิปทั้งหมด (คืน transRef ให้ใช้ใหม่ได้)
 

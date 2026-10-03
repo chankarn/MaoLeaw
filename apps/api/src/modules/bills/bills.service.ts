@@ -361,6 +361,31 @@ export class BillsService {
   }
 
   /**
+   * Admin rejects a payment claim: the share goes back to PENDING (slip forgotten, image
+   * deleted) and the member gets a LINE message with the reason so they can resend.
+   */
+  async rejectClaim(billId: string, shareId: string, reason: string | null | undefined) {
+    const share = await prisma.billShare.findUnique({
+      where: { id: shareId },
+      include: { bill: { include: { event: true } }, member: true },
+    });
+    if (!share || share.billId !== billId) throw new NotFoundException('Share not found');
+    if (share.paymentStatus !== 'CLAIMED') throw new ConflictException('Only CLAIMED shares can be rejected');
+    if (share.bill.status !== 'SENT') throw new ConflictException('Only SENT bills can be rejected');
+
+    await this.purgeSlipImages({ id: shareId });
+    await prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch('PENDING') });
+
+    const pushed = await this.push.sendSlipRejected(
+      share.bill.event,
+      share.amount,
+      share.member,
+      reason?.trim() || null,
+    );
+    return { pushed };
+  }
+
+  /**
    * Member claims payment with a slip image. The slip is verified (SlipOK) and checked
    * against the share: a clean match settles it as PAID immediately; anything doubtful
    * becomes CLAIMED + NEEDS_REVIEW with the image kept for the admin.

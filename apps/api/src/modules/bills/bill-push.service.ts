@@ -70,6 +70,86 @@ export class BillPushService {
     }
   }
 
+  /**
+   * Tell a member their payment claim was rejected so they can resend a slip.
+   * Best-effort: returns false on failure and leaves the bill push status untouched.
+   */
+  async sendSlipRejected(
+    event: { id: string; name: string },
+    amount: number,
+    member: { lineUserId: string },
+    reason: string | null,
+  ): Promise<boolean> {
+    const liffId = this.cfg.getOrThrow<string>('LIFF_ID');
+    const deepLink = `https://liff.line.me/${liffId}/events/${event.id}/bill`;
+    const contents = {
+      type: 'bubble',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [{ type: 'text', text: 'สลิปยังไม่ผ่านการตรวจ ⚠️', weight: 'bold', size: 'lg', color: '#FFFFFF' }],
+        backgroundColor: '#B45309',
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        contents: [
+          { type: 'text', text: event.name, weight: 'bold', size: 'md', wrap: true },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              { type: 'text', text: 'ยอดที่ต้องจ่าย', size: 'sm', color: '#78716C' },
+              {
+                type: 'text',
+                text: `฿${amount.toLocaleString('th-TH')}`,
+                size: 'lg',
+                weight: 'bold',
+                align: 'end',
+                color: '#D97706',
+              },
+            ],
+          },
+          { type: 'separator' },
+          {
+            type: 'text',
+            text: reason ? `เหตุผล: ${reason}` : 'admin ตรวจสอบแล้วยังไม่พบยอดโอนนี้',
+            size: 'sm',
+            wrap: true,
+          },
+          {
+            type: 'text',
+            text: 'กรุณาตรวจสอบแล้วส่งสลิปใหม่อีกครั้งในหน้าบิล',
+            size: 'sm',
+            color: '#78716C',
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: '#D97706',
+            action: { type: 'uri', label: 'เปิดบิล / ส่งสลิปใหม่', uri: deepLink },
+          },
+        ],
+      },
+    };
+
+    try {
+      await this.line.sendPushFlex(member.lineUserId, 'สลิปยังไม่ผ่านการตรวจ — กรุณาส่งใหม่', contents);
+      return true;
+    } catch (err) {
+      this.logger.error(`Reject notification failed for ${member.lineUserId}`, err);
+      return false;
+    }
+  }
+
   private buildFlex(opts: {
     title: string;
     eventName: string;

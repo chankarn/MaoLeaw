@@ -39,6 +39,10 @@ const bulkMarkSchema = z.object({
 });
 type BulkMarkInput = z.infer<typeof bulkMarkSchema>;
 
+const rejectClaimSchema = z.object({
+  reason: z.string().trim().max(200).optional().nullable(),
+});
+
 @Controller('/admin/bills')
 @UseGuards(JwtAuthGuard)
 @Roles('ADMIN')
@@ -124,6 +128,17 @@ export class AdminBillsController {
     @Body(new ZodValidationPipe(bulkMarkSchema)) body: BulkMarkInput,
   ) {
     return this.bills.bulkMarkShares(id, body.shareIds, body.paymentStatus);
+  }
+
+  /** Reject a CLAIMED payment → back to PENDING + LINE message to the member. */
+  @Post(':id/shares/:shareId/reject')
+  @HttpCode(200)
+  reject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('shareId', ParseUUIDPipe) shareId: string,
+    @Body(new ZodValidationPipe(rejectClaimSchema)) body: z.infer<typeof rejectClaimSchema>,
+  ) {
+    return this.bills.rejectClaim(id, shareId, body.reason);
   }
 
   /** Short-lived signed URL of a slip that needs review. */

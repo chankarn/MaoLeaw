@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   useAdminBill,
   useBulkMarkShares,
@@ -30,6 +31,7 @@ import {
   useDeleteBill,
   useMarkShare,
   useResetToDraft,
+  useRejectClaim,
   useRetryPush,
   useSendBill,
   useSlipImageUrl,
@@ -48,6 +50,7 @@ export default function BillDetailPage() {
   const mark = useMarkShare(id);
   const bulkMark = useBulkMarkShares(id);
   const retry = useRetryPush(id);
+  const [rejecting, setRejecting] = useState<{ id: string; name: string; amount: number } | null>(null);
   const del = useDeleteBill();
   const reset = useResetToDraft(id);
 
@@ -350,6 +353,13 @@ export default function BillDetailPage() {
                       <RowActions
                         share={s}
                         onMark={(status) => mark.mutate({ shareId: s.id, status })}
+                        onReject={() =>
+                          setRejecting({
+                            id: s.id,
+                            name: s.member.customName || s.member.lineDisplayName,
+                            amount: s.amount,
+                          })
+                        }
                         disabled={mark.isPending}
                       />
                     </div>
@@ -391,6 +401,8 @@ export default function BillDetailPage() {
           </aside>
         </div>
       </div>
+
+      <RejectClaimDialog billId={id} share={rejecting} onClose={() => setRejecting(null)} />
 
       {/* Bulk action floating bar */}
       {selected.size > 0 && (
@@ -530,10 +542,12 @@ function PushBadge({
 function RowActions({
   share,
   onMark,
+  onReject,
   disabled,
 }: {
   share: { id: string; paymentStatus: 'PENDING' | 'CLAIMED' | 'PAID' };
   onMark: (status: 'PENDING' | 'CLAIMED' | 'PAID') => void;
+  onReject: () => void;
   disabled: boolean;
 }) {
   if (share.paymentStatus === 'PAID') {
@@ -564,8 +578,9 @@ function RowActions({
           size="sm"
           variant="outline"
           className="h-7 px-2 text-[11px]"
-          onClick={() => onMark('PENDING')}
+          onClick={onReject}
           disabled={disabled}
+          title="ไม่ผ่าน — แจ้งผู้ใช้ทาง LINE"
         >
           ✗
         </Button>
@@ -638,5 +653,86 @@ function SlipInfo({
         </button>
       )}
     </div>
+  );
+}
+
+const REJECT_REASONS = ['ไม่พบยอดโอนเข้าบัญชี', 'ยอดโอนไม่ครบ', 'สลิปไม่ชัด', 'สลิปไม่ใช่ของบิลนี้'];
+
+/** Reject a claimed payment with an optional reason — the member is notified on LINE. */
+function RejectClaimDialog({
+  billId,
+  share,
+  onClose,
+}: {
+  billId: string;
+  share: { id: string; name: string; amount: number } | null;
+  onClose: () => void;
+}) {
+  const reject = useRejectClaim(billId);
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    if (share) setReason('');
+  }, [share]);
+
+  async function handleReject() {
+    if (!share) return;
+    try {
+      const r = await reject.mutateAsync({ shareId: share.id, reason: reason.trim() || null });
+      if (r.pushed) toast.success(`ตีกลับแล้ว และแจ้ง ${share.name} ทาง LINE แล้ว`);
+      else toast.warning(`ตีกลับแล้ว แต่ส่งข้อความ LINE ไม่สำเร็จ — แจ้ง ${share.name} เองด้วยนะ`);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'ตีกลับไม่สำเร็จ');
+    }
+  }
+
+  return (
+    <Dialog open={!!share} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>สลิปไม่ผ่าน — ตีกลับ</DialogTitle>
+        </DialogHeader>
+        {share && (
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              สถานะของ <span className="font-semibold text-foreground">{share.name}</span> (
+              {formatBaht(share.amount)}) จะกลับเป็น “รอชำระ” และระบบจะส่งข้อความ LINE
+              ให้ส่งสลิปใหม่
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {REJECT_REASONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setReason(r)}
+                  className={cn(
+                    'rounded-full border px-2.5 py-1 text-xs transition',
+                    reason === r ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary/40',
+                  )}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value.slice(0, 200))}
+              placeholder="เหตุผล (ไม่บังคับ) — จะแสดงในข้อความที่ส่งถึงผู้ใช้"
+              rows={3}
+              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            ยกเลิก
+          </Button>
+          <Button variant="destructive" onClick={handleReject} disabled={reject.isPending}>
+            {reject.isPending ? 'กำลังส่ง…' : 'ตีกลับ + แจ้งผู้ใช้'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -155,6 +155,36 @@ test.describe('Slip verification', () => {
     await expect(claimWithSlip(auth.token, ev.id, used)).rejects.toThrow(/409/);
   });
 
+  test('admin rejects a claim → back to PENDING, slip can be resent', async ({ liff, newLineUser }) => {
+    const { auth, adminToken, ev, bill } = await setup(liff, newLineUser, 'reject');
+    const slip = e2eSlip({ amount: 100 }); // underpaid → NEEDS_REVIEW
+    await claimWithSlip(auth.token, ev.id, slip);
+
+    const detail = await apiCall<{ shares: Share[] }>(`/admin/bills/${bill.id}`, { token: adminToken });
+    const share = detail.shares[0];
+    const r = await apiCall<{ pushed: boolean }>(`/admin/bills/${bill.id}/shares/${share.id}/reject`, {
+      method: 'POST',
+      body: { reason: 'ยอดโอนไม่ครบ' },
+      token: adminToken,
+    });
+    expect(r.pushed).toBe(true); // E2E mode swallows the LINE push
+
+    const mine = await apiCall<{ myShare: { paymentStatus: string; slipCheck: string | null } }>(
+      `/events/${ev.id}/my-bill`,
+      { token: auth.token },
+    );
+    expect(mine.myShare).toMatchObject({ paymentStatus: 'PENDING', slipCheck: null });
+
+    // Only CLAIMED shares can be rejected.
+    await expect(
+      apiCall(`/admin/bills/${bill.id}/shares/${share.id}/reject`, { method: 'POST', body: {}, token: adminToken }),
+    ).rejects.toThrow(/409/);
+
+    // The rejected slip's transRef is released — a corrected slip settles it.
+    const ok = await claimWithSlip(auth.token, ev.id, e2eSlip({ amount: 300 }));
+    expect(ok.paymentStatus).toBe('PAID');
+  });
+
   test('claim without a slip is rejected', async ({ liff, newLineUser }) => {
     const { auth, ev } = await setup(liff, newLineUser, 'noslip');
     await expect(

@@ -192,3 +192,16 @@ export function useSlipImageUrl(billId: string) {
       apiFetch<{ url: string }>(`/admin/bills/${billId}/shares/${shareId}/slip`),
   });
 }
+
+/** Reject a CLAIMED payment — back to PENDING and the member is notified on LINE. */
+export function useRejectClaim(billId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shareId, reason }: { shareId: string; reason: string | null }) =>
+      apiFetch<{ pushed: boolean }>(`/admin/bills/${billId}/shares/${shareId}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-bill', billId] }),
+  });
+}
