@@ -1358,7 +1358,7 @@ Admin mark PENDING ล้างข้อมูลสลิปทั้งหม�
 - `GET /v1/members/me/bills` → `MyOutstandingDto { totalOutstanding, bills[] }` (PENDING/CLAIMED, amount > 0, บิล SENT) — ใช้ใน LIFF Profile และ chat bot
 
 ### 9.3.2 Receipt reading — AI (2026-10-04)
-- Admin bill form → **อ่านจากรูปบิล**: รูปย่อฝั่ง browser (≤2000px) → `POST /v1/admin/receipts/read` (multipart `image`, ≤8MB) → `{ items[{name, price, itemType, confident}], receiptTotal, warnings[] }` → เติมแถวในฟอร์ม (แถว `confident=false` ไฮไลต์) — **admin ตรวจก่อนบันทึกเสมอ**, ไม่เก็บรูป
+- Admin bill form → **อ่านจากรูปบิล**: รูปย่อฝั่ง browser (≤2000px) → `POST /v1/admin/receipts/read` (multipart `images`, 1–5 รูป รูปละ ≤8MB, ส่งเป็น request เดียว — กินโควต้า 1 ครั้ง และ AI ตัดรายการซ้ำเมื่อถ่ายบิลยาวหลายรูป) → `{ items[{name, price, itemType, confident}], receiptTotal, warnings[] }` → เติมแถวในฟอร์ม (แถว `confident=false` ไฮไลต์) — **admin ตรวจก่อนบันทึกเสมอ**, ไม่เก็บรูป
 - `ReceiptReaderService` → Gemini `generateContent` (JSON schema output, temperature 0); models ลองตามลำดับ `GEMINI_MODELS` (default `gemini-3.5-flash,gemini-3.5-flash-lite`) เมื่อเจอ 429/5xx
 - Prompt แนบชื่อรายการ→ประเภทจากบิลเก่าของก๊วน (สูงสุด 60 ชื่อไม่ซ้ำ) ให้ AI เดาตามธรรมเนียมของก๊วน (เช่น น้ำแข็ง = SHARED)
 - `parseReceipt()` (pure, tested): validate, ปัดเป็นบาท, ตัดบรรทัด 0, ส่วนลด (ราคาติดลบ) → warning, เทียบยอดรวมกับใบเสร็จ

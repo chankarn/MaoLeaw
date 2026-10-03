@@ -12,7 +12,8 @@ export interface ReceiptImage {
 
 /** Tried in order; the next one is used when a model is busy or out of free quota. */
 const DEFAULT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
-const TIMEOUT_MS = 45_000;
+// Several photos in one request can take ~45s on a busy model.
+const TIMEOUT_MS = 60_000;
 const MAX_EXAMPLES = 60;
 const E2E_PREFIX = 'E2E-RECEIPT:';
 
@@ -38,10 +39,18 @@ const RESPONSE_SCHEMA = {
   required: ['readable', 'items'],
 };
 
-function buildPrompt(examples: { name: string; itemType: string }[]) {
+function buildPrompt(examples: { name: string; itemType: string }[], imageCount: number) {
   const lines = [
-    'You read a Thai restaurant or bar receipt photo and list its line items for splitting the bill among friends.',
+    'You read Thai restaurant or bar receipt photos and list their line items for splitting the bill among friends.',
     'Return JSON only, following the schema.',
+    ...(imageCount > 1
+      ? [
+          `There are ${imageCount} photos. They may be different receipts from the same night, or one long receipt`,
+          'photographed in parts. List every purchased line exactly once across all photos: when photos overlap',
+          'the same receipt, do not repeat the overlapping lines. Lines with the same name on different',
+          'receipts are separate purchases — keep both.',
+        ]
+      : []),
     '',
     'For each purchased line:',
     '- name: the item as printed (keep Thai), include quantity if shown, e.g. "ลีโอ x6".',
@@ -56,7 +65,7 @@ function buildPrompt(examples: { name: string; itemType: string }[]) {
     'Do NOT include subtotal, grand total, cash received, change, or payment lines.',
     'Include service charge and VAT as their own SHARED lines when printed.',
     'A bill-level discount goes in as its own line with a NEGATIVE price.',
-    'receiptTotal: the final amount to pay, or null if not visible.',
+    'receiptTotal: the final amount to pay (summed over distinct receipts if there are several), or null if any is not visible.',
   ];
   if (examples.length > 0) {
     lines.push(
@@ -74,8 +83,9 @@ export class ReceiptReaderService {
 
   constructor(private readonly cfg: ConfigService) {}
 
-  async read(image: ReceiptImage): Promise<ReceiptReadResult> {
-    if (this.cfg.get<string>('E2E_TEST_MODE') === 'true') return this.readE2E(image);
+  /** One request for all photos: one quota hit, and the model can de-duplicate overlaps. */
+  async read(images: ReceiptImage[]): Promise<ReceiptReadResult> {
+    if (this.cfg.get<string>('E2E_TEST_MODE') === 'true') return this.readE2E(images[0]!);
 
     const apiKey = this.cfg.get<string>('GEMINI_API_KEY');
     if (!apiKey) throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า GEMINI_API_KEY');
@@ -84,8 +94,10 @@ export class ReceiptReaderService {
       contents: [
         {
           parts: [
-            { text: buildPrompt(await this.pastExamples()) },
-            { inline_data: { mime_type: image.mimetype, data: image.buffer.toString('base64') } },
+            { text: buildPrompt(await this.pastExamples(), images.length) },
+            ...images.map((image) => ({
+              inline_data: { mime_type: image.mimetype, data: image.buffer.toString('base64') },
+            })),
           ],
         },
       ],

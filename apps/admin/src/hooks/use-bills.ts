@@ -225,12 +225,15 @@ export interface ReceiptReadResult {
   warnings: string[];
 }
 
-/** Send a receipt photo to the AI reader — returns suggested rows (nothing is saved). */
+/** Max photos per AI read (matches the API). */
+export const MAX_RECEIPT_IMAGES = 5;
+
+/** Send receipt photos to the AI reader in one request — returns suggested rows (nothing is saved). */
 export function useReadReceipt() {
   return useMutation({
-    mutationFn: (image: Blob) => {
+    mutationFn: (images: Blob[]) => {
       const form = new FormData();
-      form.append('image', image, 'receipt.jpg');
+      images.forEach((image, i) => form.append('images', image, `receipt-${i + 1}.jpg`));
       return apiFetch<ReceiptReadResult>('/admin/receipts/read', { method: 'POST', body: form });
     },
   });

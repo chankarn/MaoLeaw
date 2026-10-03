@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BANK_OPTIONS, calculateBill, type BankCode, type BillItemType, type DrinkChoice, type PaymentType } from '@maoleaw/shared';
 import { useEventAttendees, useEventsForBill } from '@/hooks/use-events';
-import { useCreateBill, useReadReceipt, useUpdateBill } from '@/hooks/use-bills';
+import { MAX_RECEIPT_IMAGES, useCreateBill, useReadReceipt, useUpdateBill } from '@/hooks/use-bills';
 import { compressImage } from '@/lib/image';
 import { cn, formatBaht } from '@/lib/utils';
 
@@ -110,10 +110,16 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
   const readReceipt = useReadReceipt();
   const receiptInput = useRef<HTMLInputElement>(null);
 
-  async function handleReceipt(file: File | undefined) {
-    if (!file) return;
+  async function handleReceipts(fileList: FileList | null) {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    if (files.length > MAX_RECEIPT_IMAGES) {
+      toast.error(`เลือกได้ครั้งละไม่เกิน ${MAX_RECEIPT_IMAGES} รูป ที่เหลือกดอ่านอีกรอบได้`);
+      if (receiptInput.current) receiptInput.current.value = '';
+      return;
+    }
     try {
-      const result = await readReceipt.mutateAsync(await compressImage(file));
+      const result = await readReceipt.mutateAsync(await Promise.all(files.map((f) => compressImage(f))));
       const aiRows: RowState[] = result.items.map((it) => ({
         ...newRow(it.itemType),
         name: it.name,
@@ -128,7 +134,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
         });
         const unsure = aiRows.filter((r) => r.aiUnsure).length;
         toast.success(
-          `เพิ่ม ${aiRows.length} รายการจากใบเสร็จ${unsure ? ` (ตรวจประเภท ${unsure} รายการที่ไฮไลต์)` : ''}`,
+          `เพิ่ม ${aiRows.length} รายการจาก ${files.length} รูป${unsure ? ` (ตรวจประเภท ${unsure} รายการที่ไฮไลต์)` : ''}`,
         );
       }
       for (const w of result.warnings) toast.warning(w, { duration: 8000 });
@@ -367,8 +373,9 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                   ref={receiptInput}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="sr-only"
-                  onChange={(e) => handleReceipt(e.target.files?.[0])}
+                  onChange={(e) => handleReceipts(e.target.files)}
                 />
                 <Button
                   size="sm"
