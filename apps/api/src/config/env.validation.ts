@@ -39,6 +39,10 @@ export const configValidationSchema = z.object({
   SLIPOK_MONTHLY_LIMIT: z.coerce.number().int().nonnegative().default(100),
   SUPABASE_URL: z.string().url().optional().or(z.literal('')),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  // Gemini (Google AI Studio) — reads receipt photos into bill rows. Optional.
+  GEMINI_API_KEY: z.string().optional(),
+  // Comma-separated fallback chain; default gemini-3.5-flash,gemini-3.5-flash-lite
+  GEMINI_MODELS: z.string().optional(),
 
   // E2E test bypass — when 'true', /auth/line accepts fake idTokens (e2e:USER_ID)
   // and LINE Push is skipped. NEVER set in production.

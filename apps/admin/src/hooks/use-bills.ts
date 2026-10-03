@@ -218,3 +218,20 @@ export function useRemindUnpaid(billId: string) {
 export function fetchLineQuota() {
   return apiFetch<{ limit: number | null; used: number }>('/admin/line/quota');
 }
+
+export interface ReceiptReadResult {
+  items: { name: string; price: number; itemType: 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED'; confident: boolean }[];
+  receiptTotal: number | null;
+  warnings: string[];
+}
+
+/** Send a receipt photo to the AI reader — returns suggested rows (nothing is saved). */
+export function useReadReceipt() {
+  return useMutation({
+    mutationFn: (image: Blob) => {
+      const form = new FormData();
+      form.append('image', image, 'receipt.jpg');
+      return apiFetch<ReceiptReadResult>('/admin/receipts/read', { method: 'POST', body: form });
+    },
+  });
+}

@@ -12,6 +12,7 @@ import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.
 import { AdminSettingsModule } from './modules/admin-settings/admin-settings.module';
 import { HealthModule } from './modules/health/health.module';
 import { LineWebhookModule } from './modules/line-webhook/line-webhook.module';
+import { ReceiptsModule } from './modules/receipts/receipts.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { configValidationSchema } from './config/env.validation';
 
@@ -44,6 +45,7 @@ import { configValidationSchema } from './config/env.validation';
     AdminSettingsModule,
     HealthModule,
     LineWebhookModule,
+    ReceiptsModule,
   ],
   providers: [
     {

@@ -1,8 +1,8 @@
 // File: apps/admin/src/components/bill-form.tsx
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronUp, Plus, Trash2, Users } from 'lucide-react';
+import { Camera, ChevronDown, ChevronUp, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BANK_OPTIONS, calculateBill, type BankCode, type BillItemType, type DrinkChoice, type PaymentType } from '@maoleaw/shared';
 import { useEventAttendees, useEventsForBill } from '@/hooks/use-events';
-import { useCreateBill, useUpdateBill } from '@/hooks/use-bills';
+import { useCreateBill, useReadReceipt, useUpdateBill } from '@/hooks/use-bills';
+import { compressImage } from '@/lib/image';
 import { cn, formatBaht } from '@/lib/utils';
 
 interface RowState {
@@ -23,6 +24,8 @@ interface RowState {
   extraMemberIds: string[];
   customMemberIds: string[];
   expanded: boolean;
+  /** Filled in from a receipt photo and the AI wasn't sure about the type. */
+  aiUnsure?: boolean;
 }
 
 function newRow(itemType: BillItemType = 'SHARED'): RowState {
@@ -104,6 +107,37 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
   const update = useUpdateBill(initial?.id ?? '');
 
   const submitting = create.isPending || update.isPending;
+  const readReceipt = useReadReceipt();
+  const receiptInput = useRef<HTMLInputElement>(null);
+
+  async function handleReceipt(file: File | undefined) {
+    if (!file) return;
+    try {
+      const result = await readReceipt.mutateAsync(await compressImage(file));
+      const aiRows: RowState[] = result.items.map((it) => ({
+        ...newRow(it.itemType),
+        name: it.name,
+        price: it.price,
+        aiUnsure: !it.confident,
+      }));
+      if (aiRows.length > 0) {
+        // Replace the untouched blank row(s) of a fresh form; otherwise append.
+        setRows((rs) => {
+          const kept = rs.filter((r) => r.name.trim() || r.price !== '');
+          return [...kept, ...aiRows];
+        });
+        const unsure = aiRows.filter((r) => r.aiUnsure).length;
+        toast.success(
+          `เพิ่ม ${aiRows.length} รายการจากใบเสร็จ${unsure ? ` (ตรวจประเภท ${unsure} รายการที่ไฮไลต์)` : ''}`,
+        );
+      }
+      for (const w of result.warnings) toast.warning(w, { duration: 8000 });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'อ่านใบเสร็จไม่สำเร็จ');
+    } finally {
+      if (receiptInput.current) receiptInput.current.value = '';
+    }
+  }
 
   const total = useMemo(
     () => rows.reduce((s, r) => s + (typeof r.price === 'number' ? r.price : 0), 0),
@@ -328,10 +362,28 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-semibold">รายการ</h2>
-              <Button size="sm" variant="outline" onClick={() => setRows([...rows, newRow()])}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                เพิ่มรายการ
-              </Button>
+              <div className="flex gap-2">
+                <input
+                  ref={receiptInput}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => handleReceipt(e.target.files?.[0])}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => receiptInput.current?.click()}
+                  disabled={readReceipt.isPending}
+                >
+                  <Camera className="mr-1.5 h-4 w-4" />
+                  {readReceipt.isPending ? 'AI กำลังอ่าน…' : 'อ่านจากรูปบิล'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setRows([...rows, newRow()])}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  เพิ่มรายการ
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -360,7 +412,16 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                 const canExpand = !!attendees.data && (isCustom || candidateExtras.length > 0);
 
                 return (
-                  <div key={r.tempId} className="space-y-2">
+                  <div
+                    key={r.tempId}
+                    className={cn('space-y-2', r.aiUnsure && 'rounded-md bg-amber-50 p-2 ring-1 ring-amber-300')}
+                  >
+                    {r.aiUnsure && (
+                      <p className="flex items-center gap-1 text-[11px] text-amber-700">
+                        <Sparkles className="h-3 w-3" />
+                        AI ไม่แน่ใจประเภทของรายการนี้ ช่วยเช็คอีกที
+                      </p>
+                    )}
                     <div className="grid grid-cols-[1fr_110px_150px_140px_40px] gap-2">
                       <Input
                         value={r.name}
@@ -386,6 +447,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                             extraMemberIds: [],
                             customMemberIds: [],
                             expanded: v === 'CUSTOM',
+                            aiUnsure: false,
                           })
                         }
                       >
