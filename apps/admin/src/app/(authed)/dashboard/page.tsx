@@ -667,7 +667,7 @@ function ClaimItem({
           {claim.bill.eventName} · {claim.claimedAt && formatThaiDateTime(claim.claimedAt)}
         </p>
         {claim.claimNote && (
-          <p className="mt-0.5 truncate text-[11px] italic text-stone-600">"{claim.claimNote}"</p>
+          <p className="mt-0.5 truncate text-[11px] italic text-stone-600">&quot;{claim.claimNote}&quot;</p>
         )}
       </div>
       <div className="flex shrink-0 gap-1">

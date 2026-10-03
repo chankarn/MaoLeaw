@@ -1,0 +1,15 @@
+// Lint config for the plain-TypeScript packages (apps/api, packages/shared).
+// The Next.js apps have their own eslint.config.mjs (found first, so this one doesn't apply there).
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+  { ignores: ['**/dist/**', '**/.next/**', '**/node_modules/**', '**/.turbo/**'] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
+);

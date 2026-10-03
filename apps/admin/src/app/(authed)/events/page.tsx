@@ -6,7 +6,6 @@ import {
   Edit2,
   MapPin,
   MoreHorizontal,
-  Plus,
   Receipt,
   Search,
   Trash2,

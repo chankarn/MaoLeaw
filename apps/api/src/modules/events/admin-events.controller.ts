@@ -3,7 +3,6 @@ import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, type JwtPayload } from '../../common/decorators/current-user.decorator';
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createEventSchema, updateEventSchema, type CreateEventInput, type UpdateEventInput } from '@maoleaw/shared';
 import { EventsService } from './events.service';

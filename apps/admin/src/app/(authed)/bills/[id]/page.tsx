@@ -345,7 +345,7 @@ export default function BillDetailPage() {
                       <SlipInfo billId={id} share={s} />
                       {s.claimNote && (
                         <p className="mt-0.5 truncate text-[11px] italic text-sky-700">
-                          📝 "{s.claimNote}"
+                          📝 &quot;{s.claimNote}&quot;
                           {s.claimedAt && (
                             <span className="ml-1 text-stone-500">
                               · {formatThaiDateTime(s.claimedAt)}
