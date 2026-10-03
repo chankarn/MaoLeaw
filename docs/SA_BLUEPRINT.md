@@ -1363,6 +1363,7 @@ Admin mark PENDING ล้างข้อมูลสลิปทั้งหม�
 - Prompt แนบชื่อรายการ→ประเภทจากบิลเก่าของก๊วน (สูงสุด 60 ชื่อไม่ซ้ำ) ให้ AI เดาตามธรรมเนียมของก๊วน (เช่น น้ำแข็ง = SHARED)
 - `parseReceipt()` (pure, tested): validate, ปัดเป็นบาท, ตัดบรรทัด 0, ส่วนลด (ราคาติดลบ) → warning, เทียบยอดรวมกับใบเสร็จ
 - AI จัดได้แค่ LIQUOR/BEER/MIXER/SHARED — CUSTOM / extra members ยังเป็นหน้าที่ admin
+- ปุ่ม **รวมรายการซ้ำ (N)** ในฟอร์ม (`mergeDuplicateItems` ใน shared, มี test): รวมแถวที่ชื่อเดียวกัน (ไม่นับ `xN` ท้ายชื่อ) + ประเภทเดียวกัน + extra/custom members ชุดเดียวกัน → ราคาและจำนวนรวมกัน; ไม่รวมอัตโนมัติ เพราะแยกแถวช่วยตรวจกับใบเสร็จ/ตั้งคนร่วมหารต่างกันได้
 
 ### 9.4 Config
 `SLIPOK_API_KEY`, `SLIPOK_BRANCH_ID` (ไม่ตั้ง = ทุก claim ไป review), `SLIPOK_MONTHLY_LIMIT` (default 100), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (ไม่ตั้ง = ไม่เก็บรูป).

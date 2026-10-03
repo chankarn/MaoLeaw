@@ -2,7 +2,7 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, ChevronDown, ChevronUp, Plus, Sparkles, Trash2, Users } from 'lucide-react';
+import { Camera, ChevronDown, ChevronUp, Combine, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BANK_OPTIONS, calculateBill, type BankCode, type BillItemType, type DrinkChoice, type PaymentType } from '@maoleaw/shared';
+import { BANK_OPTIONS, calculateBill, mergeDuplicateItems, type BankCode, type BillItemType, type DrinkChoice, type PaymentType } from '@maoleaw/shared';
 import { useEventAttendees, useEventsForBill } from '@/hooks/use-events';
 import { MAX_RECEIPT_IMAGES, useCreateBill, useReadReceipt, useUpdateBill } from '@/hooks/use-bills';
 import { compressImage } from '@/lib/image';
@@ -108,6 +108,13 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
 
   const submitting = create.isPending || update.isPending;
   const readReceipt = useReadReceipt();
+  const duplicateCount = useMemo(() => mergeDuplicateItems(rows).merged, [rows]);
+
+  function handleMergeDuplicates() {
+    const { items, merged } = mergeDuplicateItems(rows);
+    setRows(items);
+    toast.success(`รวมรายการซ้ำแล้ว ${merged} แถว`);
+  }
   const receiptInput = useRef<HTMLInputElement>(null);
 
   async function handleReceipts(fileList: FileList | null) {
@@ -386,6 +393,17 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                   <Camera className="mr-1.5 h-4 w-4" />
                   {readReceipt.isPending ? 'AI กำลังอ่าน…' : 'อ่านจากรูปบิล'}
                 </Button>
+                {duplicateCount > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleMergeDuplicates}
+                    title="รวมแถวที่ชื่อและประเภทเดียวกัน (และคนร่วมหารชุดเดียวกัน) เป็นแถวเดียว"
+                  >
+                    <Combine className="mr-1.5 h-4 w-4" />
+                    รวมรายการซ้ำ ({duplicateCount})
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => setRows([...rows, newRow()])}>
                   <Plus className="mr-1.5 h-4 w-4" />
                   เพิ่มรายการ
