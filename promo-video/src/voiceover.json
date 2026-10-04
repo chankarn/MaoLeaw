@@ -1,0 +1,62 @@
+{
+  "model": "gemini-2.5-flash-preview-tts",
+  "voice": "Puck",
+  "style": "Say in Thai, like an upbeat, playful, energetic TV promo announcer for a fun app. Keep it punchy:",
+  "lines": [
+    {
+      "id": "hook",
+      "at": 2,
+      "text": "แปดคน หนึ่งบิล แล้วใครจ่ายเท่าไหร่?",
+      "frames": 88
+    },
+    {
+      "id": "brand",
+      "at": 121,
+      "text": "เมาแล้ว! หารบิลวงเหล้า จบในไลน์",
+      "frames": 104,
+      "rate": 1.1
+    },
+    {
+      "id": "event",
+      "at": 222,
+      "text": "สร้างงาน แชร์เข้ากลุ่ม เพื่อนกดเข้าร่วมได้เลย",
+      "frames": 95
+    },
+    {
+      "id": "receipt",
+      "at": 322,
+      "text": "ถ่ายรูปใบเสร็จ เอไอแยกรายการให้เอง",
+      "frames": 118
+    },
+    {
+      "id": "split",
+      "at": 452,
+      "text": "ใครกินอะไร ก็จ่ายตามนั้น",
+      "frames": 61
+    },
+    {
+      "id": "slip",
+      "at": 562,
+      "text": "โอนแล้วแนบสลิป ระบบตรวจให้อัตโนมัติ",
+      "frames": 119
+    },
+    {
+      "id": "paid",
+      "at": 684,
+      "text": "จ่ายแล้ว!",
+      "frames": 30
+    },
+    {
+      "id": "close",
+      "at": 728,
+      "text": "ทุกคนจ่ายครบ บิลก็ปิดเอง",
+      "frames": 108
+    },
+    {
+      "id": "outro",
+      "at": 858,
+      "text": "เมาแล้ว! ไปเมา ไม่ต้องปวดหัวเรื่องหารเงิน",
+      "frames": 103
+    }
+  ]
+}

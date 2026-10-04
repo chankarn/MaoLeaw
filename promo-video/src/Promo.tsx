@@ -1,4 +1,5 @@
 import { AbsoluteFill, Audio, Sequence, interpolate, random, staticFile, useCurrentFrame } from 'remotion';
+import VO from './voiceover.json';
 import {
   Avatar,
 
@@ -41,10 +42,21 @@ const SHOTS = {
   split: [440, 130],
   slip: [560, 166],
   close: [716, 134], // cut under bars @ 835+15 = 850
-  outro: [849, 92],
+  outro: [849, 125], // long enough for the last voice-over line
 } as const;
 const BARS_AT = [169, 835];
-export const PROMO_DURATION = 941;
+export const PROMO_DURATION = 974;
+
+// Gemini TTS voice-over (scripts/make-voice.mjs); `frames` is the clip length at 1x.
+const VO_LINES = VO.lines as { id: string; at: number; frames: number; rate?: number }[];
+const voLen = (l: (typeof VO_LINES)[number]) => Math.ceil(l.frames / (l.rate ?? 1));
+
+/** Music gain: dips under the voice-over with short ramps. */
+function musicVolume(f: number) {
+  let duck = 0;
+  for (const l of VO_LINES) duck = Math.max(duck, interpolate(f, [l.at - 6, l.at, l.at + voLen(l), l.at + voLen(l) + 8], [0, 1, 1, 0], clamp));
+  return 0.55 * (1 - 0.55 * duck);
+}
 
 // [frame, sound, volume] — all sounds are synthesized by scripts/make-audio.mjs.
 const CUES: [number, string, number][] = [
@@ -72,7 +84,7 @@ const CUES: [number, string, number][] = [
   // 04 slip
   [570, 'digital', 0.4], [610, 'tap', 0.8], [616, 'whoosh', 0.5], [628, 'paper', 0.8], [634, 'scan', 0.45],
   [640, 'ding', 0.3], [648, 'ding', 0.35], [656, 'ding', 0.4],
-  [675, 'success', 0.75], [675, 'impact', 0.55], [677, 'sparkle', 0.5],
+  [675, 'success', 0.55], [675, 'impact', 0.3], [677, 'sparkle', 0.5],
   // 05 close
   [712, 'whoosh', 0.7], [738, 'coin', 0.5], [750, 'coin', 0.55], [762, 'coin', 0.6],
   [780, 'stamp', 0.8], [780, 'impact', 0.45], [782, 'sparkle', 0.6], [833, 'whoosh', 0.8],
@@ -91,7 +103,12 @@ export const Promo = () => (
         </Sequence>
       );
     })}
-    <Audio src={staticFile('audio/music.wav')} volume={0.55} />
+    <Audio src={staticFile('audio/music.wav')} volume={musicVolume} />
+    {VO_LINES.map((l) => (
+      <Sequence key={l.id} from={l.at} durationInFrames={voLen(l) + 4} layout="none">
+        <Audio src={staticFile(`vo/${l.id}.wav`)} playbackRate={l.rate ?? 1} volume={0.9} />
+      </Sequence>
+    ))}
     {CUES.map(([at, name, volume], i) => (
       <Sequence key={`a${i}`} from={at} durationInFrames={60} layout="none">
         <Audio src={staticFile(`audio/sfx/${name}.wav`)} volume={volume} />

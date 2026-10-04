@@ -1,6 +1,6 @@
 # MaoLeaw promo video
 
-~31-second 9:16 (1080x1920) promo for portfolio and sharing, built with [Remotion](https://www.remotion.dev).
+~32-second 9:16 (1080x1920) promo for portfolio and sharing, built with [Remotion](https://www.remotion.dev).
 It is **not** part of the pnpm workspace (own `package-lock.json`), so CI, Render and Vercel ignore it.
 All names and amounts in the video are made up; no production data.
 
@@ -17,3 +17,7 @@ Music is 120 BPM = one beat per 15 frames; SFX cue frames live in `CUES` in `src
 
 Rendering uses the locally installed Chrome (`remotion.config.ts`); change the path if yours differs.
 Scenes and timings live in `src/Promo.tsx` (`T`); colors and shared pieces in `src/ui.tsx`.
+
+Thai voice-over: Gemini TTS via `scripts/make-voice.mjs` (needs `GEMINI_API_KEY`; lines, timing and voice
+in `src/voiceover.json`). The clips in `public/vo/` are committed because regenerating costs free-tier quota
+(only a handful of TTS requests per day) and the output changes every run. Music ducks under each line.

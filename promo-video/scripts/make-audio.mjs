@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const SR = 44100;
 const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'audio');
-const MUSIC_LEN = 31.6;
+const MUSIC_LEN = 32.6;
 
 /* ------------------------------------------------------------------ utilities */
 
@@ -397,7 +397,7 @@ function music() {
     for (let i = 0; i < r.length; i++) S[1][n(END) + i] += r[i];
     for (const [t, ch, d] of [
       [END, [NOTE.F2, NOTE.F3, NOTE.A3, NOTE.C4], 2.4],
-      [END + 2.5, [NOTE.C3, NOTE.G3, NOTE.C4, NOTE.E4], 3.0],
+      [END + 2.5, [NOTE.C3, NOTE.G3, NOTE.C4, NOTE.E4], 4.0],
     ]) {
       const [pl, pr] = pad(ch, d, 1500);
       const s = n(t);
