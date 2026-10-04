@@ -1,4 +1,4 @@
-import { AbsoluteFill, Sequence, interpolate, random, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Sequence, interpolate, random, staticFile, useCurrentFrame } from 'remotion';
 import {
   Avatar,
 
@@ -34,17 +34,51 @@ import {
 // 30 fps · 1080x1920 · 30 s. Shots overlap by 10 frames where a whip/zoom/iris joins them;
 // bar wipes hide the cut at their midpoint.
 const SHOTS = {
-  intro: [0, 64],
-  logo: [62, 66], // cut under bars @ 113+15 = 128
-  event: [127, 127],
-  receipt: [244, 150],
-  split: [384, 130],
-  slip: [504, 166],
-  close: [660, 134], // cut under bars @ 779+15 = 794
-  outro: [793, 107],
+  intro: [0, 120], // beats land every 15 frames (120 BPM soundtrack)
+  logo: [118, 66], // cut under bars @ 169+15 = 184
+  event: [183, 127],
+  receipt: [300, 150],
+  split: [440, 130],
+  slip: [560, 166],
+  close: [716, 134], // cut under bars @ 835+15 = 850
+  outro: [849, 92],
 } as const;
-const BARS_AT = [113, 779];
-export const PROMO_DURATION = 900;
+const BARS_AT = [169, 835];
+export const PROMO_DURATION = 941;
+
+// [frame, sound, volume] — all sounds are synthesized by scripts/make-audio.mjs.
+const CUES: [number, string, number][] = [
+  // intro slams
+  [0, 'impact', 0.9], [30, 'impact', 0.9], [57, 'whoosh', 0.7], [76, 'impact', 1],
+  ...[3, 5, 7, 9, 11, 13, 15, 17].map((f, i): [number, string, number] => [f, 'pop', 0.18 + i * 0.02]),
+  [64, 'swish', 0.3], [71, 'swish', 0.3], [79, 'swish', 0.3], [88, 'swish', 0.3], [102, 'whoosh', 0.8],
+  // logo
+  [134, 'clink', 0.9], [134, 'impact', 0.55], [138, 'swish', 0.4], [150, 'pop', 0.25], [155, 'pop', 0.25],
+  [167, 'whoosh', 0.8],
+  // 01 event
+  [186, 'whoosh', 0.5], [221, 'tap', 0.8], [223, 'ding', 0.35], [231, 'pop', 0.3], [247, 'tap', 0.8], [257, 'pop', 0.45],
+  ...Array.from({ length: 8 }, (_, i): [number, string, number] => [269 + i * 3, 'pop', 0.22 + i * 0.03]),
+  [296, 'whoosh', 0.8],
+  // 02 receipt
+  [304, 'swish', 0.5], [316, 'scan', 0.55],
+  ...[328, 333, 338, 343, 348].map((f): [number, string, number] => [f, 'blip', 0.4]),
+  [360, 'swish', 0.4],
+  ...[370, 375, 380, 385, 390].map((f): [number, string, number] => [f, 'swish', 0.3]),
+  [404, 'count', 0.35], [424, 'cash', 0.7],
+  // 03 split
+  [438, 'whoosh', 0.7], [450, 'count', 0.35], [478, 'impact', 0.7],
+  ...Array.from({ length: 8 }, (_, i): [number, string, number] => [496 + i * 2, 'pop', 0.3]),
+  [538, 'pop', 0.4], [556, 'whoosh', 0.8],
+  // 04 slip
+  [570, 'digital', 0.4], [610, 'tap', 0.8], [616, 'whoosh', 0.5], [628, 'paper', 0.8], [634, 'scan', 0.45],
+  [640, 'ding', 0.3], [648, 'ding', 0.35], [656, 'ding', 0.4],
+  [675, 'success', 0.75], [675, 'impact', 0.55], [677, 'sparkle', 0.5],
+  // 05 close
+  [712, 'whoosh', 0.7], [738, 'coin', 0.5], [750, 'coin', 0.55], [762, 'coin', 0.6],
+  [780, 'stamp', 0.8], [780, 'impact', 0.45], [782, 'sparkle', 0.6], [833, 'whoosh', 0.8],
+  // outro
+  [853, 'clink', 0.7], [865, 'swish', 0.35], [879, 'pop', 0.25], [885, 'pop', 0.25],
+];
 
 export const Promo = () => (
   <AbsoluteFill style={{ background: C.navyDeep, fontFamily: FONT }}>
@@ -57,6 +91,12 @@ export const Promo = () => (
         </Sequence>
       );
     })}
+    <Audio src={staticFile('audio/music.wav')} volume={0.55} />
+    {CUES.map(([at, name, volume], i) => (
+      <Sequence key={`a${i}`} from={at} durationInFrames={60} layout="none">
+        <Audio src={staticFile(`audio/sfx/${name}.wav`)} volume={volume} />
+      </Sequence>
+    ))}
     {BARS_AT.map((at, i) => (
       <Sequence key={at} from={at} durationInFrames={BARS_DUR}>
         <Bars colors={i === 0 ? [C.navy, C.primary, C.navyDeep, C.amber, C.navy] : [C.primary, C.cream, C.amber, C.primary, C.cream]} />
@@ -72,21 +112,21 @@ const TAGS = [407, 512, 107, 900, 796, 690, 120, 60, 2566, 407, 512, 107];
 
 function Intro({ dur }: { dur: number }) {
   const f = useCurrentFrame();
-  const beat = f < 15 ? 0 : f < 30 ? 1 : 2;
+  const beat = f < 30 ? 0 : f < 60 ? 1 : 2;
   const bg = [C.navy, C.primary, C.cream][beat]!;
   const slamA = Math.min(1.08, useSpring(0, { damping: 18, stiffness: 260 }));
-  const slamB = Math.min(1.08, useSpring(15, { damping: 18, stiffness: 260 }));
-  const l1 = useSpring(30, { damping: 13, stiffness: 200 });
-  const l2 = useSpring(34, { damping: 10, stiffness: 200 });
-  const iris = tw(f, [52, 64], [0, 1500], expoIn);
+  const slamB = Math.min(1.08, useSpring(30, { damping: 18, stiffness: 260 }));
+  const l1 = useSpring(60, { damping: 13, stiffness: 200 });
+  const l2 = useSpring(75, { damping: 10, stiffness: 200 });
+  const iris = tw(f, [104, 120], [0, 1500], expoIn);
   return (
     <Shot dur={dur} bg={bg}>
-      <Shaker events={[[1, 26], [16, 26], [35, 34]]}>
+      <Shaker events={[[1, 26], [31, 26], [76, 34]]}>
         {beat === 0 && (
           <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
             {Array.from({ length: 8 }, (_, i) => {
               const a = (i / 8) * Math.PI * 2 - Math.PI / 2 + f * 0.04;
-              const s = tw(f, [2 + i, 8 + i], [0, 1]);
+              const s = tw(f, [3 + i * 2, 10 + i * 2], [0, 1]);
               return (
                 <div key={i} style={{ position: 'absolute', left: 540 + Math.cos(a) * 400 - 50, top: 940 + Math.sin(a) * 400 - 50, transform: `scale(${s})` }}>
                   <Avatar name={'ตมบพจฟนอ'[i]!} color={[C.beer, C.liquor, C.none][i % 3]!} size={100} />
@@ -116,8 +156,8 @@ function Intro({ dur }: { dur: number }) {
         {beat === 2 && (
           <AbsoluteFill style={{ perspective: 900 }}>
             {TAGS.map((n, i) => {
-              const start = 30 + i * 2;
-              const z = interpolate(f, [start, start + 26], [-2600, 900], clamp);
+              const start = 62 + i * 3;
+              const z = interpolate(f, [start, start + 30], [-2600, 900], clamp);
               if (f < start) return null;
               const x = 120 + random(`tx${i}`) * 840;
               const y = 260 + random(`ty${i}`) * 1400;
@@ -670,16 +710,16 @@ function SlipScene({ dur }: { dur: number }) {
   const f = useCurrentFrame();
   const enter = useSpring(6, { damping: 15, stiffness: 100 });
   const thrown = springAt(f, 58, 12, 110);
-  const checksOut = tw(f, [104, 110], [1, 0]);
-  const big = useSpring(108, { damping: 9, stiffness: 180 });
-  const draw = tw(f, [112, 126], [0, 1]);
-  const done = Math.min(1.1, useSpring(118, { damping: 11 }));
-  const scanning = f >= 74 && f < 104;
+  const checksOut = tw(f, [111, 117], [1, 0]);
+  const big = useSpring(115, { damping: 9, stiffness: 180 });
+  const draw = tw(f, [119, 133], [0, 1]);
+  const done = Math.min(1.1, useSpring(125, { damping: 11 }));
+  const scanning = f >= 74 && f < 111;
   return (
     <Shot dur={dur} enter="whipUp" exit="zoom" bg={C.navy}>
       <Marquee text="จ่าย • PAID •" y={600} speed={9} />
       <StepCaption num="04" l1="โอนแล้วแนบสลิป" l2="ระบบตรวจให้เอง" delay={8} />
-      <Shaker events={[[108, 28]]}>
+      <Shaker events={[[115, 28]]}>
         <AbsoluteFill style={{ perspective: 2200 }}>
           <Phone
             title="บิลของฉัน"
@@ -779,10 +819,10 @@ function SlipScene({ dur }: { dur: number }) {
         </div>
 
         {/* big check over a dimmed frame */}
-        <AbsoluteFill style={{ background: C.navyDeep, opacity: tw(f, [104, 114], [0, 0.82]) }} />
-        <Flash at={108} color={C.green} peak={0.55} len={14} />
-        <Shockwave at={108} x={540} y={1030} color="#86EFAC" max={900} rings={3} />
-        <Burst at={110} x={540} y={1030} count={36} dist={620} colors={[C.green, '#86EFAC', 'white']} />
+        <AbsoluteFill style={{ background: C.navyDeep, opacity: tw(f, [111, 121], [0, 0.82]) }} />
+        <Flash at={115} color={C.green} peak={0.55} len={14} />
+        <Shockwave at={115} x={540} y={1030} color="#86EFAC" max={900} rings={3} />
+        <Burst at={117} x={540} y={1030} count={36} dist={620} colors={[C.green, '#86EFAC', 'white']} />
         <div
           style={{
             position: 'absolute',
@@ -866,7 +906,7 @@ function CloseScene({ dur }: { dur: number }) {
   const paidAt = [0, 0, 0, 0, 0, 22, 34, 46];
   const paid = paidAt.filter((a) => f >= a).length;
   const prog = tw(f, [0, 10], [0, 5 / 8]) + paidAt.slice(5).reduce((s, a) => s + tw(f, [a, a + 10], [0, 1 / 8]), 0);
-  const stamp = useSpring(60, { damping: 8, stiffness: 220 });
+  const stamp = useSpring(64, { damping: 8, stiffness: 220 });
   const cx = 540;
   const cy = 1060;
   const r = 330;
@@ -875,7 +915,7 @@ function CloseScene({ dur }: { dur: number }) {
     <Shot dur={dur} enter="zoom" bg={C.navyDeep}>
       <Marquee text="ครบ • DONE •" y={1560} speed={9} dir={-1} />
       <StepCaption num="05" l1="จ่ายครบทุกคน" l2="ปิดบิลให้เอง" delay={6} />
-      <Shaker events={[[60, 44]]}>
+      <Shaker events={[[64, 44]]}>
         <svg width={W} height={H} style={{ position: 'absolute' }}>
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={34} />
           <circle
@@ -941,7 +981,7 @@ function CloseScene({ dur }: { dur: number }) {
             top: cy - 100,
             textAlign: 'center',
             transform: `scale(${3 - stamp * 2}) rotate(-10deg)`,
-            opacity: f >= 60 ? Math.min(1, stamp * 1.5) : 0,
+            opacity: f >= 64 ? Math.min(1, stamp * 1.5) : 0,
           }}
         >
           <div
@@ -961,8 +1001,8 @@ function CloseScene({ dur }: { dur: number }) {
           </div>
         </div>
       </Shaker>
-      <Flash at={60} peak={0.8} len={10} />
-      <Confetti at={60} x={cx} y={cy} />
+      <Flash at={64} peak={0.8} len={10} />
+      <Confetti at={64} x={cx} y={cy} />
     </Shot>
   );
 }

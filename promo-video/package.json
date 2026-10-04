@@ -3,8 +3,9 @@
   "private": true,
   "description": "30s 9:16 promo video for MaoLeaw (Remotion). Not part of the pnpm workspace.",
   "scripts": {
-    "studio": "remotion studio",
-    "render": "remotion render Promo out/maoleaw-promo.mp4",
+    "audio": "node scripts/make-audio.mjs",
+    "studio": "npm run audio && remotion studio",
+    "render": "npm run audio && remotion render Promo out/maoleaw-promo.mp4",
     "still": "remotion still Promo out/still.png"
   },
   "dependencies": {
