@@ -1,12 +1,16 @@
 // Generates the Thai voice-over with Gemini TTS → public/vo/<id>.wav (silence-trimmed)
-// and writes each line's length in frames back into src/voiceover.json.
+// and writes each line's length in frames back into src/voiceover.json after every line.
 //
-//   GEMINI_API_KEY=... node scripts/make-voice.mjs              # all lines
-//   GEMINI_API_KEY=... node scripts/make-voice.mjs --samples A,B  # hook line in other voices → public/vo-samples/
+//   GEMINI_API_KEY=... node scripts/make-voice.mjs                     # all lines
+//   GEMINI_API_KEY=... node scripts/make-voice.mjs --only hook,close   # just these
+//   GEMINI_API_KEY=... node scripts/make-voice.mjs --model <name>      # override cfg.model
 //
-// The generated WAVs are committed: TTS output isn't deterministic and costs quota to redo
-// (free tier allows only a handful of TTS requests per day). Use a 2.5 TTS model: the
-// 3.x TTS models read the style instruction aloud instead of following it.
+// Prompt = cfg.style + the line's `direction`, then "Say:" + the Thai text. With 2.5 TTS models
+// that is read as direction; 3.x TTS models tended to read it aloud, so for those the style
+// goes into systemInstruction instead (cfg.styleAs = "system").
+//
+// The generated WAVs are committed: TTS output isn't deterministic and the free tier allows
+// only ~10 TTS requests per model per day.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,15 +22,27 @@ const cfg = JSON.parse(fs.readFileSync(CFG_PATH, 'utf8'));
 const KEY = process.env.GEMINI_API_KEY;
 if (!KEY) throw new Error('GEMINI_API_KEY is not set');
 
+const arg = (name) => {
+  const i = process.argv.indexOf(name);
+  return i > 0 ? process.argv[i + 1] : null;
+};
+const MODEL = arg('--model') ?? cfg.model;
+const ONLY = arg('--only')?.split(',') ?? null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function tts(text, voice) {
+async function tts(text, direction = '') {
+  const style = `${cfg.style} ${direction}`.trim();
   const body = {
-    contents: [{ parts: [{ text: `${cfg.style} ${text}` }] }],
-    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
+    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: cfg.voice } } } },
   };
+  if (cfg.styleAs === 'system') {
+    body.systemInstruction = { parts: [{ text: style }] };
+    body.contents = [{ parts: [{ text }] }];
+  } else {
+    body.contents = [{ parts: [{ text: `${style}\nSay:\n${text}` }] }];
+  }
   for (let attempt = 0; attempt < 6; attempt++) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent`, {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': KEY },
       body: JSON.stringify(body),
@@ -40,7 +56,7 @@ async function tts(text, voice) {
     if (r.status === 429 || r.status >= 500) {
       const delay = j.error?.details?.find((x) => x.retryDelay)?.retryDelay;
       const wait = delay ? parseFloat(delay) * 1000 + 500 : 8000 * (attempt + 1);
-      if (wait > 120000) throw new Error(`quota exhausted (retry in ${delay}); try again later`);
+      if (wait > 120000) throw new Error(`quota exhausted for ${MODEL} (retry in ${delay})`);
       console.log(`  ${r.status}, retrying in ${Math.round(wait / 1000)}s`);
       await sleep(wait);
       continue;
@@ -105,23 +121,13 @@ function writeWav(file, { rate, samples }) {
   fs.writeFileSync(file, buf);
 }
 
-const samplesArg = process.argv.indexOf('--samples');
-if (samplesArg > 0) {
-  const dir = path.join(ROOT, 'public', 'vo-samples');
-  fs.mkdirSync(dir, { recursive: true });
-  const text = 'แปดคน หนึ่งบิล แล้วใครจ่ายเท่าไหร่? เมาแล้ว! หารบิลวงเหล้า จบในไลน์';
-  for (const voice of process.argv[samplesArg + 1].split(',')) {
-    console.log(`sample ${voice}`);
-    writeWav(path.join(dir, `${voice}.wav`), trim(await tts(text, voice)));
-  }
-} else {
-  const dir = path.join(ROOT, 'public', 'vo');
-  fs.mkdirSync(dir, { recursive: true });
-  for (const line of cfg.lines) {
-    const pcm = trim(await tts(line.text, cfg.voice));
-    writeWav(path.join(dir, `${line.id}.wav`), pcm);
-    line.frames = Math.ceil((pcm.samples.length / pcm.rate) * 30);
-    console.log(`${line.id.padEnd(8)} ${(line.frames / 30).toFixed(2)}s  frames ${line.at}–${line.at + line.frames}`);
-  }
+const dir = path.join(ROOT, 'public', 'vo');
+fs.mkdirSync(dir, { recursive: true });
+for (const line of cfg.lines) {
+  if (ONLY && !ONLY.includes(line.id)) continue;
+  const pcm = trim(await tts(line.text, line.direction));
+  writeWav(path.join(dir, `${line.id}.wav`), pcm);
+  line.frames = Math.ceil((pcm.samples.length / pcm.rate) * 30);
   fs.writeFileSync(CFG_PATH, JSON.stringify(cfg, null, 2) + '\n');
+  console.log(`${line.id.padEnd(8)} ${(line.frames / 30).toFixed(2)}s  frames ${line.at}–${line.at + line.frames}`);
 }
