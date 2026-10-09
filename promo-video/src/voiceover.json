@@ -7,63 +7,63 @@
       "id": "hook",
       "at": 2,
       "text": "แปดคน! หนึ่งบิล! แล้วใครจ่ายเท่าไหร่ล่ะเนี่ย?!",
-      "frames": 88,
+      "frames": 110,
       "direction": "Snappy and bright on the first two words, then ask the last question with exaggerated, comically confused energy, pitch rising high and playful on \"เท่าไหร่\"."
     },
     {
       "id": "brand",
       "at": 121,
       "text": "เมาเลี๊ยว! หารบิลวงเหล้า จบในไลน์!",
-      "frames": 104,
+      "frames": 97,
       "direction": "Shout the app name \"เมาเลี๊ยว\" proudly like a big reveal, then say the rest cheerfully and quickly."
     },
     {
       "id": "event",
       "at": 222,
       "text": "สร้างงาน แชร์เข้ากลุ่ม เพื่อนกดเข้าร่วมได้เลย!",
-      "frames": 95,
+      "frames": 97,
       "direction": "Upbeat and friendly, quick pace."
     },
     {
       "id": "receipt",
       "at": 322,
       "text": "ถ่ายรูปใบเสร็จ เอไอแยกรายการให้เอง!",
-      "frames": 118,
+      "frames": 83,
       "direction": "Impressed, \"wow, that is cool\" energy."
     },
     {
       "id": "split",
       "at": 452,
       "text": "ใครกินอะไร ก็จ่ายตามนั้น!",
-      "frames": 61,
+      "frames": 69,
       "direction": "Playful and teasing, with a grin."
     },
     {
       "id": "slip",
       "at": 562,
       "text": "โอนแล้วแนบสลิป ระบบตรวจให้อัตโนมัติ!",
-      "frames": 119,
+      "frames": 84,
       "direction": "Confident and cheerful, quick pace."
     },
     {
       "id": "paid",
       "at": 684,
       "text": "จ่ายแล้ว!",
-      "frames": 30,
+      "frames": 34,
       "direction": "Triumphant happy cheer."
     },
     {
       "id": "close",
       "at": 728,
       "text": "ทุกคนจ่ายครบ บิลก็ปิดเองเลย!",
-      "frames": 108,
+      "frames": 101,
       "direction": "Celebrate! Build up excitement and finish \"บิลก็ปิดเองเลย\" with a big, joyful, rising cheer, like everyone is shouting yeah."
     },
     {
       "id": "outro",
       "at": 858,
       "text": "เมาเลี๊ยว! ไปเมา ไม่ต้องปวดหัวเรื่องหารเงิน!",
-      "frames": 103,
+      "frames": 89,
       "direction": "Big fun sign-off: shout \"เมาเลี๊ยว\" happily, then deliver the rest with a smiling, slightly laughing tone."
     }
   ]
