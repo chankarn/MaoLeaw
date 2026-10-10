@@ -7,6 +7,8 @@
 #   - Supabase pauses the project after 7 days without DB activity → the ping must
 #     actually query the DB (/v1/health/db runs SELECT 1; plain /v1/health does not).
 #     The daily evening pings are plenty for that.
+#   - Once a day at 13:00 Bangkok (06:00 UTC) it also wakes the API for the automatic
+#     payment reminder (AutoRemindService only sends 13:00–15:00 Bangkok).
 # GitHub disables scheduled workflows in public repos after 60 days without repo
 # activity, so the last step re-enables this workflow through the API each run.
 name: Keep API Warm
@@ -14,6 +16,7 @@ name: Keep API Warm
 on:
   schedule:
     - cron: '*/12 10-18 * * *' # UTC → every ~12 min, 17:00–01:59 Asia/Bangkok
+    - cron: '0 6 * * *' # UTC → 13:00 Asia/Bangkok, wakes the API for the daily auto-reminder
   workflow_dispatch:
 
 permissions:

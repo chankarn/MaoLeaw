@@ -9,9 +9,10 @@ const CHECK_EVERY_MS = 30 * 60 * 1000;
 const FIRST_CHECK_MS = 60 * 1000;
 
 /**
- * Sends one automatic LINE reminder to members who still haven't paid, AUTO_REMIND_DAYS
- * after a bill was sent. Runs in-process: Render keeps the API up every evening
- * (keep-warm), so a 30-minute check needs no external cron or extra secrets.
+ * Sends one automatic LINE reminder to members who still haven't paid, at 13:00 Bangkok
+ * on the AUTO_REMIND_DAYS-th day after a bill was sent. The keep-warm workflow pings the
+ * API at 13:00 to wake it; this service checks shortly after boot and every 30 min, but
+ * only acts inside the 13:00–15:00 window — so in effect once a day, no cron secret needed.
  *
  * A bill is claimed (autoRemindedAt set) before sending, so a restart mid-run can't send
  * twice. If the month's push quota can't cover a bill, it's left unclaimed and retried.
@@ -51,7 +52,7 @@ export class AutoRemindService implements OnModuleInit, OnModuleDestroy {
           status: 'SENT',
           deletedAt: null,
           autoRemindedAt: null,
-          sentAt: { lte: autoRemindCutoff(now, this.days) },
+          sentAt: { lt: autoRemindCutoff(now, this.days) },
         },
         include: {
           event: { select: { id: true, name: true } },
