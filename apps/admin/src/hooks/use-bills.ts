@@ -28,6 +28,10 @@ interface AdminBillDetail {
   bankCode: string | null;
   bankAccountNumber: string | null;
   bankAccountName: string | null;
+  sentAt: string | null;
+  /** When the automatic reminder goes out (null = feature off / not sent). */
+  autoRemindDueAt: string | null;
+  autoRemindedAt: string | null;
   event: { id: string; name: string; eventDate: string };
   items: Array<{
     id: string;

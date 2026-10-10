@@ -218,6 +218,7 @@ export default function BillDetailPage() {
             <p className="mt-0.5 text-sm text-white/80">
               {bill.event.name} · {formatThaiDateTime(bill.event.eventDate)}
             </p>
+            {bill.status === 'SENT' && <AutoRemindNote bill={bill} pendingCount={stats.pendingCount} />}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Badge variant={STATUS_VARIANT[bill.status]} className="text-xs">
@@ -495,6 +496,28 @@ export default function BillDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** One-line status of the automatic reminder sent AUTO_REMIND_DAYS after the bill went out. */
+function AutoRemindNote({
+  bill,
+  pendingCount,
+}: {
+  bill: { autoRemindDueAt: string | null; autoRemindedAt: string | null };
+  pendingCount: number;
+}) {
+  let text: string | null = null;
+  if (bill.autoRemindedAt) text = `ทวงอัตโนมัติแล้ว ${formatThaiDateTime(bill.autoRemindedAt)}`;
+  else if (bill.autoRemindDueAt && pendingCount > 0) {
+    text = `ระบบจะทวงคนที่ยังไม่จ่ายให้อัตโนมัติ ${formatThaiDateTime(bill.autoRemindDueAt)}`;
+  }
+  if (!text) return null;
+  return (
+    <p className="mt-1 inline-flex items-center gap-1 text-xs text-white/80">
+      <Megaphone className="h-3 w-3" />
+      {text}
+    </p>
   );
 }
 

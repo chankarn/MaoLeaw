@@ -15,6 +15,7 @@ import {
 } from '@maoleaw/shared';
 import { BillPushService } from './bill-push.service';
 import { recomputeDraftShares } from './recompute-shares';
+import { autoRemindDueAt } from './auto-remind';
 import { evaluateSlip, type ExpectedPayment, type SlipVerdict } from '../slips/evaluate-slip';
 import { SlipStorageService } from '../slips/slip-storage.service';
 import { SlipVerifierService, type UploadedSlip } from '../slips/slip-verifier.service';
@@ -89,7 +90,7 @@ export class BillsService {
       },
     });
     if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
-    return bill;
+    return { ...bill, autoRemindDueAt: autoRemindDueAt(bill.sentAt, Number(this.cfg.get('AUTO_REMIND_DAYS') ?? 3)) };
   }
 
   async create(adminId: string, input: CreateBillInput) {
@@ -333,7 +334,7 @@ export class BillsService {
       });
       return tx.bill.update({
         where: { id: billId },
-        data: { status: 'DRAFT', sentAt: null },
+        data: { status: 'DRAFT', sentAt: null, autoRemindedAt: null },
       });
     });
   }

@@ -183,6 +183,8 @@ model Bill {
   bankAccountName   String?     @db.VarChar(100)
   createdById       String      @db.Uuid
   sentAt            DateTime?   @db.Timestamptz(6)
+  // Set when the one automatic payment reminder went out (AUTO_REMIND_DAYS after sentAt)
+  autoRemindedAt    DateTime?   @db.Timestamptz(6)
   closedAt          DateTime?   @db.Timestamptz(6)
   createdAt         DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt         DateTime    @updatedAt @db.Timestamptz(6)

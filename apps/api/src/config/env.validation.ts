@@ -37,6 +37,8 @@ export const configValidationSchema = z.object({
   SLIPOK_API_KEY: z.string().optional(),
   SLIPOK_BRANCH_ID: z.string().optional(),
   SLIPOK_MONTHLY_LIMIT: z.coerce.number().int().nonnegative().default(100),
+  // Days after a bill is sent before unpaid members get one automatic LINE reminder. 0 = off.
+  AUTO_REMIND_DAYS: z.coerce.number().int().nonnegative().default(3),
   SUPABASE_URL: z.string().url().optional().or(z.literal('')),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   // Gemini (Google AI Studio) — reads receipt photos into bill rows. Optional.

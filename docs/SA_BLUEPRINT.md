@@ -1352,6 +1352,13 @@ API (BillsService.claimPaid):
 
 Admin mark PENDING ล้างข้อมูลสลิปทั้งหมด (คืน transRef ให้ใช้ใหม่ได้)
 
+### 9.3.0 Automatic payment reminder (2026-10-10)
+- One LINE reminder per bill, `AUTO_REMIND_DAYS` (default 3, 0 = off) after `sentAt`, to shares still `PENDING` with amount > 0. Same Flex card as the admin "ทวงเงิน" button.
+- `AutoRemindService` checks every 30 min in-process (the API is awake every evening thanks to keep-warm) and only sends 09:00–21:00 Asia/Bangkok — so in practice reminders land in the evening.
+- `Bill.autoRemindedAt` is claimed with a guarded `updateMany` before sending (no double send on restart); skipped and retried later if the month's push quota can't cover the bill. Reset to Draft clears it, so a re-sent bill gets a fresh 3 days.
+- Migration marks bills already older than 3 days at deploy time as reminded (no backlog blast).
+- Admin bill page shows "ระบบจะทวง… / ทวงอัตโนมัติแล้ว…" under the title.
+
 ### 9.3.1 Auto-close & outstanding (2026-10-04)
 - `closeIfFullyPaid(billId)` รันหลังทุกจุดที่ share กลายเป็น PAID (สลิปผ่านอัตโนมัติ, admin mark, bulk mark): ถ้าไม่เหลือ share ที่ `amount > 0` และยังไม่ PAID → `SENT → CLOSED` (guarded `updateMany` กันปิดซ้ำ) + ลบรูปสลิป. share ยอด 0 บาทนับว่าจ่ายแล้ว
 - admin mark/bulk คืน `billClosed` → UI ขึ้น toast
