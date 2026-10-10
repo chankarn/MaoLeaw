@@ -11,6 +11,8 @@ interface AdminMemberRow {
   preferredDrink: 'LIQUOR' | 'BEER';
   memberType: 'BD' | 'TL' | 'KU' | 'FRIEND' | 'OTHER';
   banned: boolean;
+  /** Walk-in added by an admin, no LINE account. */
+  isGuest: boolean;
   totalEvents: number;
   createdAt: string;
 }

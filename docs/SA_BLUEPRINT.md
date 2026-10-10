@@ -1352,6 +1352,11 @@ API (BillsService.claimPaid):
 
 Admin mark PENDING ล้างข้อมูลสลิปทั้งหมด (คืน transRef ให้ใช้ใหม่ได้)
 
+### 9.2.9 Walk-in attendees & cash payments (2026-10-11)
+- Admin edits attendance from the bill form (new/edit while DRAFT): `POST /admin/events/:eventId/attendees` `{ memberId | guestName, drinkChoice }`, `DELETE /admin/events/:eventId/attendees/:memberId`. Same lock as members: only while the event has no bill or a DRAFT bill; DRAFT shares are recomputed, and a removed member is stripped from items' extra/custom payer lists first.
+- **Guests** (`Member.isGuest`): people without LINE in the system. Created on the fly with `lineUserId = "guest:<uuid>"`, `memberType FRIEND`. Never pushed to (bill notification, manual and auto reminders skip them), excluded from dashboard member counts, deleted when removed from their last event.
+- **`BillShare.paidVia`** (`TRANSFER | CASH`, null = not recorded): admin row actions are "💵 เงินสด" / "✓ โอนแล้ว" for PENDING, "✓ Confirm" (= TRANSFER) for CLAIMED; slip auto-confirm sets TRANSFER; bulk mark leaves it null. Any move off PAID clears it.
+
 ### 9.3.0 Automatic payment reminder (2026-10-10)
 - One LINE reminder per bill to shares still `PENDING` with amount > 0, sent at **13:00 Asia/Bangkok** on day (Bangkok date of `sentAt`) + `AUTO_REMIND_DAYS` (default 3, 0 = off) — e.g. sent Monday any time → reminded Thursday 13:00. Same Flex card as the admin "ทวงเงิน" button.
 - Once a day: the keep-warm workflow has an extra `0 6 * * *` (13:00 BKK) schedule that wakes Render; `AutoRemindService` checks 60 s after boot and every 30 min but only acts 13:00–15:00 (slack for late GitHub cron starts). No cron secret needed.

@@ -56,7 +56,10 @@ export class AutoRemindService implements OnModuleInit, OnModuleDestroy {
         },
         include: {
           event: { select: { id: true, name: true } },
-          shares: { where: { paymentStatus: 'PENDING', amount: { gt: 0 } }, include: { member: true } },
+          shares: {
+            where: { paymentStatus: 'PENDING', amount: { gt: 0 }, member: { isGuest: false } },
+            include: { member: true },
+          },
         },
         orderBy: { sentAt: 'asc' },
       });

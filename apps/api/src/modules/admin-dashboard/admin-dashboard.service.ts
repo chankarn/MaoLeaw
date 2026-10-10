@@ -36,8 +36,8 @@ export class AdminDashboardService {
     ] = await Promise.all([
       prisma.event.count({ where: { deletedAt: null } }),
       prisma.event.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
-      prisma.member.count({ where: { banned: false } }),
-      prisma.member.count({ where: { banned: false, createdAt: { gte: weekAgo } } }),
+      prisma.member.count({ where: { banned: false, isGuest: false } }),
+      prisma.member.count({ where: { banned: false, isGuest: false, createdAt: { gte: weekAgo } } }),
       prisma.bill.count({ where: { deletedAt: null, createdAt: { gte: monthStart } } }),
       prisma.bill.aggregate({
         where: { deletedAt: null, createdAt: { gte: monthStart } },
@@ -115,7 +115,7 @@ export class AdminDashboardService {
         },
       }),
       prisma.member.findMany({
-        where: rangedFilter ? { createdAt: rangedFilter } : undefined,
+        where: { isGuest: false, ...(rangedFilter && { createdAt: rangedFilter }) },
         orderBy: { createdAt: 'desc' },
         take: 10,
         select: {

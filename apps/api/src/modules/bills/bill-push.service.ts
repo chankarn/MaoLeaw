@@ -11,7 +11,7 @@ interface BillWithRelations {
   shares: Array<{
     id: string;
     amount: number;
-    member: { lineUserId: string; lineDisplayName: string };
+    member: { lineUserId: string; lineDisplayName: string; isGuest: boolean };
   }>;
 }
 
@@ -28,6 +28,7 @@ export class BillPushService {
     let sent = 0;
     let failed = 0;
     for (const share of bill.shares) {
+      if (share.member.isGuest) continue; // walk-in without LINE: the admin tells them in person
       const ok = await this.sendShareNotification(bill, bill.event, share, share.member);
       if (ok) sent++;
       else failed++;

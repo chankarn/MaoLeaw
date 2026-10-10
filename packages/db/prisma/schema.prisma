@@ -59,6 +59,11 @@ enum PaymentStatus {
   PAID
 }
 
+enum PaymentMethod {
+  TRANSFER
+  CASH
+}
+
 enum PushDeliveryStatus {
   PENDING
   SENT
@@ -125,6 +130,9 @@ model Member {
   preferredDrink  DrinkPreference
   memberType      MemberType
   banned          Boolean         @default(false)
+  // Walk-in added by an admin: no LINE account (lineUserId is a "guest:<uuid>" placeholder),
+  // never receives pushes, settles in cash/transfer marked by the admin.
+  isGuest         Boolean         @default(false)
   createdAt       DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime        @updatedAt @db.Timestamptz(6)
 
@@ -232,6 +240,8 @@ model BillShare {
   slipTransferredAt DateTime?          @db.Timestamptz(6)
   slipImagePath     String?
   paidAt            DateTime?          @db.Timestamptz(6)
+  // How a PAID share was settled (null = not recorded, e.g. bulk mark / older rows)
+  paidVia           PaymentMethod?
   pushStatus        PushDeliveryStatus @default(PENDING)
   pushError         String?
   pushSentAt        DateTime?          @db.Timestamptz(6)

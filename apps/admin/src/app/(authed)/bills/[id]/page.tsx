@@ -95,6 +95,8 @@ export default function BillDetailPage() {
       claimedAmount: claimed.reduce((s, x) => s + x.amount, 0),
       pendingCount: pending.length,
       pendingAmount: pending.reduce((s, x) => s + x.amount, 0),
+      // Guests have no LINE — reminders can't reach them.
+      remindableCount: pending.filter((x) => !x.member.isGuest).length,
       totalShares: bill.shares.length,
     };
   }, [bill]);
@@ -131,7 +133,7 @@ export default function BillDetailPage() {
   }
 
   async function handleRemind() {
-    const count = stats?.pendingCount ?? 0;
+    const count = stats?.remindableCount ?? 0;
     let quotaLine = '';
     try {
       const q = await fetchLineQuota();
@@ -218,7 +220,7 @@ export default function BillDetailPage() {
             <p className="mt-0.5 text-sm text-white/80">
               {bill.event.name} · {formatThaiDateTime(bill.event.eventDate)}
             </p>
-            {bill.status === 'SENT' && <AutoRemindNote bill={bill} pendingCount={stats.pendingCount} />}
+            {bill.status === 'SENT' && <AutoRemindNote bill={bill} pendingCount={stats.remindableCount} />}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Badge variant={STATUS_VARIANT[bill.status]} className="text-xs">
@@ -247,7 +249,7 @@ export default function BillDetailPage() {
             )}
             {bill.status === 'SENT' && (
               <>
-                {stats.pendingCount > 0 && (
+                {stats.remindableCount > 0 && (
                   <Button
                     variant="secondary"
                     className="bg-white text-primary shadow hover:bg-amber-50"
@@ -255,7 +257,7 @@ export default function BillDetailPage() {
                     disabled={remind.isPending}
                   >
                     <Megaphone className="mr-1.5 h-4 w-4" />
-                    {remind.isPending ? 'กำลังส่ง…' : `ทวงเงิน (${stats.pendingCount})`}
+                    {remind.isPending ? 'กำลังส่ง…' : `ทวงเงิน (${stats.remindableCount})`}
                   </Button>
                 )}
                 <Button
@@ -376,7 +378,13 @@ export default function BillDetailPage() {
                           {s.member.customName || s.member.lineDisplayName}
                         </p>
                         <PaymentBadge status={s.paymentStatus} />
-                        <PushBadge status={s.pushStatus} onRetry={() => retry.mutate(s.id)} />
+                        {s.member.isGuest ? (
+                          <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-500">
+                            แขก · ไม่มี LINE
+                          </span>
+                        ) : (
+                          <PushBadge status={s.pushStatus} onRetry={() => retry.mutate(s.id)} />
+                        )}
                       </div>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         Shared {formatBaht(s.sharedAmount)} · Drink{' '}
@@ -401,9 +409,9 @@ export default function BillDetailPage() {
                       </p>
                       <RowActions
                         share={s}
-                        onMark={(status) =>
+                        onMark={(status, paidVia) =>
                           mark.mutate(
-                            { shareId: s.id, status },
+                            { shareId: s.id, status, paidVia },
                             { onSuccess: (r) => r.billClosed && toast.success(AUTO_CLOSED_MSG) },
                           )
                         }
@@ -617,22 +625,27 @@ function RowActions({
   onReject,
   disabled,
 }: {
-  share: { id: string; paymentStatus: 'PENDING' | 'CLAIMED' | 'PAID' };
-  onMark: (status: 'PENDING' | 'CLAIMED' | 'PAID') => void;
+  share: { id: string; paymentStatus: 'PENDING' | 'CLAIMED' | 'PAID'; paidVia: 'TRANSFER' | 'CASH' | null };
+  onMark: (status: 'PENDING' | 'CLAIMED' | 'PAID', paidVia?: 'TRANSFER' | 'CASH') => void;
   onReject: () => void;
   disabled: boolean;
 }) {
   if (share.paymentStatus === 'PAID') {
     return (
-      <Button
-        size="sm"
-        variant="ghost"
-        className="mt-1 h-7 text-[11px] text-stone-500"
-        onClick={() => onMark('PENDING')}
-        disabled={disabled}
-      >
-        Reset
-      </Button>
+      <div className="mt-1 flex items-center justify-end gap-1">
+        {share.paidVia && (
+          <span className="text-[11px] text-stone-500">{share.paidVia === 'CASH' ? '💵 เงินสด' : '🏦 โอน'}</span>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-[11px] text-stone-500"
+          onClick={() => onMark('PENDING')}
+          disabled={disabled}
+        >
+          Reset
+        </Button>
+      </div>
     );
   }
   if (share.paymentStatus === 'CLAIMED') {
@@ -641,7 +654,7 @@ function RowActions({
         <Button
           size="sm"
           className="h-7 bg-emerald-600 px-2 text-[11px] hover:bg-emerald-700"
-          onClick={() => onMark('PAID')}
+          onClick={() => onMark('PAID', 'TRANSFER')}
           disabled={disabled}
         >
           ✓ Confirm
@@ -660,15 +673,28 @@ function RowActions({
     );
   }
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="mt-1 h-7 text-[11px]"
-      onClick={() => onMark('PAID')}
-      disabled={disabled}
-    >
-      Mark paid
-    </Button>
+    <div className="mt-1 flex justify-end gap-1">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-[11px]"
+        onClick={() => onMark('PAID', 'CASH')}
+        disabled={disabled}
+        title="ได้รับเงินสดแล้ว"
+      >
+        💵 เงินสด
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-[11px]"
+        onClick={() => onMark('PAID', 'TRANSFER')}
+        disabled={disabled}
+        title="เห็นยอดโอนเข้าแล้ว (ไม่ได้แนบสลิป)"
+      >
+        ✓ โอนแล้ว
+      </Button>
+    </div>
   );
 }
 

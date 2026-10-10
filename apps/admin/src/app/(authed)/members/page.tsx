@@ -141,7 +141,9 @@ export default function MembersPage() {
                                 <span className="text-muted-foreground">(ยังไม่ลงทะเบียน)</span>
                               )}
                             </p>
-                            <p className="truncate text-[11px] text-muted-foreground">LINE: {m.displayName}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {m.isGuest ? 'แขก · ไม่มี LINE' : `LINE: ${m.displayName}`}
+                            </p>
                           </div>
                         </div>
                       </TableCell>

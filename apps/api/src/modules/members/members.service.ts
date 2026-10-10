@@ -64,6 +64,7 @@ export class MembersService {
       items: items.map((m) => ({
         ...this.toDto(m),
         banned: m.banned,
+        isGuest: m.isGuest,
         createdAt: m.createdAt.toISOString(),
         totalEvents: m._count.submissions,
       })),

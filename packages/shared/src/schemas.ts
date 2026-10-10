@@ -46,6 +46,16 @@ export const submitAttendanceSchema = z.object({
 });
 export type SubmitAttendanceInput = z.infer<typeof submitAttendanceSchema>;
 
+/** Admin adds someone who came but never tapped join: an existing member or a guest name. */
+export const adminAddAttendeeSchema = z
+  .object({
+    memberId: z.string().uuid().optional(),
+    guestName: z.string().trim().min(1).max(MAX_CUSTOM_NAME_LENGTH).optional(),
+    drinkChoice: drinkChoiceSchema,
+  })
+  .refine((v) => !!v.memberId !== !!v.guestName, { message: 'เลือกสมาชิก หรือพิมพ์ชื่อแขก อย่างใดอย่างหนึ่ง' });
+export type AdminAddAttendeeInput = z.infer<typeof adminAddAttendeeSchema>;
+
 export const promptpayIdSchema = z
   .string()
   .trim()
@@ -121,8 +131,13 @@ export const updateBillSchema = z.object({
 });
 export type UpdateBillInput = z.infer<typeof updateBillSchema>;
 
+export const paymentMethodSchema = z.enum(['TRANSFER', 'CASH']);
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
 export const markShareSchema = z.object({
   paymentStatus: z.enum(['PENDING', 'CLAIMED', 'PAID']),
+  /** Only meaningful with PAID: how the admin saw the money arrive. */
+  paidVia: paymentMethodSchema.optional(),
 });
 export type MarkShareInput = z.infer<typeof markShareSchema>;
 

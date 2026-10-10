@@ -118,7 +118,7 @@ export class AdminBillsController {
     @Param('shareId', ParseUUIDPipe) shareId: string,
     @Body(new ZodValidationPipe(markShareSchema)) body: MarkShareInput,
   ) {
-    return this.bills.markShare(id, shareId, body.paymentStatus);
+    return this.bills.markShare(id, shareId, body.paymentStatus, body.paidVia);
   }
 
   @Post(':id/shares/bulk-mark')

@@ -235,7 +235,7 @@ export class EventsService {
       where: { id: eventId, deletedAt: null },
       include: {
         submissions: {
-          include: { member: { select: { id: true, customName: true, lineDisplayName: true } } },
+          include: { member: { select: { id: true, customName: true, lineDisplayName: true, isGuest: true } } },
         },
       },
     });
@@ -244,6 +244,7 @@ export class EventsService {
       memberId: s.memberId,
       name: s.nameSnapshot || s.member.customName || s.member.lineDisplayName,
       drinkChoice: s.drinkChoice,
+      isGuest: s.member.isGuest,
     }));
   }
 

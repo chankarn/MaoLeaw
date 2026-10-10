@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BANK_OPTIONS, calculateBill, mergeDuplicateItems, type BankCode, type BillItemType, type DrinkChoice, type PaymentType } from '@maoleaw/shared';
 import { useEventAttendees, useEventsForBill } from '@/hooks/use-events';
+import { AttendeesCard } from '@/components/attendees-card';
 import { MAX_RECEIPT_IMAGES, useCreateBill, useReadReceipt, useUpdateBill } from '@/hooks/use-bills';
 import { compressImage } from '@/lib/image';
 import { cn, formatBaht } from '@/lib/utils';
@@ -636,6 +637,21 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
         </Card>
 
         <aside className="space-y-4">
+          {eventId && attendees.data && (
+            <AttendeesCard
+              eventId={eventId}
+              attendees={attendees.data}
+              onRemoved={(memberId) =>
+                setRows((rs) =>
+                  rs.map((r) => ({
+                    ...r,
+                    extraMemberIds: r.extraMemberIds.filter((id) => id !== memberId),
+                    customMemberIds: r.customMemberIds.filter((id) => id !== memberId),
+                  })),
+                )
+              }
+            />
+          )}
           <Card className="p-4">
             <h3 className="mb-3 font-semibold">Preview การคิดเงิน</h3>
             {!eventId ? (
@@ -643,7 +659,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
             ) : !attendees.data ? (
               <p className="text-sm text-muted-foreground">กำลังโหลด…</p>
             ) : attendees.data.length === 0 ? (
-              <p className="text-sm text-amber-600">⚠️ ยังไม่มีผู้เข้าร่วม event นี้</p>
+              <p className="text-sm text-amber-600">⚠️ ยังไม่มีผู้เข้าร่วม event นี้ กด &quot;เพิ่มคน&quot; ด้านบนได้</p>
             ) : !preview ? (
               <p className="text-sm text-muted-foreground">กรอกรายการเพื่อดู preview</p>
             ) : (

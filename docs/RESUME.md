@@ -42,7 +42,8 @@ User confirmed in production: slip flow, bot replies, receipt reading + merge wo
 - Admin Members page still uses hardcoded `MEMBER_TYPES` labels (LIFF uses `/v1/config` overrides).
 - Unregistered placeholder members (`customName=''`) can call member GET endpoints (guard only checks banned).
 - No Sentry wiring (only an env var in `env.validation.ts`).
-- Ideas offered, not chosen yet: admin adds walk-in attendees (biggest real-world gap), duplicate event, cash payment marker, audit log, polls, badges, member stats, rich menu per state, test DB + e2e in CI, rotate leaked secrets.
+- Done after this snapshot (2026-10-10/11): auto payment reminder 13:00 BKK on day sent+3 (SA §9.3.0), walk-in attendees + guests + cash/transfer marker (SA §9.2.9), promo video in `promo-video/`.
+- Ideas offered, not chosen yet: duplicate event, audit log, polls, badges, member stats, rich menu per state, test DB + e2e in CI, rotate leaked secrets.
 
 ## 4. Decisions locked (don't re-litigate)
 - Submissions editable only while bill is DRAFT (user chose "lock at SENT"); PRD/SA updated.
@@ -65,7 +66,7 @@ User confirmed in production: slip flow, bot replies, receipt reading + merge wo
 - Supabase new secret keys (`sb_secret_…`) are sent as both `apikey` and `Authorization: Bearer` in `slip-storage.service.ts`; if uploads 401, use legacy `service_role` JWT.
 
 ## 6. Immediate next step
-Nothing is in progress. Ask the user which item from §3 to do next — the strongest candidate is **admin adds walk-in attendees to an event** (people who came but never tapped join can't be billed today). If they prefer infra: untrack Playwright artifacts + add Postgres-service e2e job to CI.
+Nothing is in progress. Strongest remaining candidates: rotate leaked secrets (user action), test DB + e2e in CI (+ untrack Playwright artifacts), F-8 standalone bill.
 
 ## 7. Verify state before trusting this doc
 ```bash

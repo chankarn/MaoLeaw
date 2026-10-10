@@ -83,7 +83,14 @@ export class BillsService {
         shares: {
           include: {
             member: {
-              select: { id: true, customName: true, lineDisplayName: true, linePictureUrl: true, lineUserId: true },
+              select: {
+                id: true,
+                customName: true,
+                lineDisplayName: true,
+                linePictureUrl: true,
+                lineUserId: true,
+                isGuest: true,
+              },
             },
           },
         },
@@ -355,11 +362,16 @@ export class BillsService {
     return { count: result.count, billClosed };
   }
 
-  async markShare(billId: string, shareId: string, status: 'PENDING' | 'CLAIMED' | 'PAID') {
+  async markShare(
+    billId: string,
+    shareId: string,
+    status: 'PENDING' | 'CLAIMED' | 'PAID',
+    paidVia?: 'TRANSFER' | 'CASH',
+  ) {
     const share = await prisma.billShare.findUnique({ where: { id: shareId }, select: { billId: true } });
     if (!share || share.billId !== billId) throw new NotFoundException('ไม่พบรายการนี้');
     if (status !== 'CLAIMED') await this.purgeSlipImages({ id: shareId });
-    const updated = await prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status) });
+    const updated = await prisma.billShare.update({ where: { id: shareId }, data: shareStatusPatch(status, paidVia) });
     const billClosed = status === 'PAID' && (await this.closeIfFullyPaid(billId));
     return { ...updated, billClosed };
   }
@@ -412,7 +424,7 @@ export class BillsService {
       where: { id: billId, deletedAt: null },
       include: {
         event: true,
-        shares: { where: { paymentStatus: 'PENDING' }, include: { member: true } },
+        shares: { where: { paymentStatus: 'PENDING', member: { isGuest: false } }, include: { member: true } },
       },
     });
     if (!bill) throw new NotFoundException('ไม่พบบิลนี้');
@@ -508,6 +520,7 @@ export class BillsService {
         data: {
           paymentStatus: verdict.ok ? 'PAID' : 'CLAIMED',
           paidAt: verdict.ok ? now : null,
+          paidVia: verdict.ok ? 'TRANSFER' : null,
           claimedAt: now,
           claimNote: note?.trim() ? note.trim() : null,
           slipCheck: verdict.ok ? 'AUTO_OK' : 'NEEDS_REVIEW',
@@ -662,13 +675,14 @@ export class BillsService {
 
 }
 
-function shareStatusPatch(status: 'PENDING' | 'CLAIMED' | 'PAID') {
-  if (status === 'PAID') return { paymentStatus: status, paidAt: new Date() };
-  if (status === 'CLAIMED') return { paymentStatus: status, paidAt: null, claimedAt: new Date() };
+function shareStatusPatch(status: 'PENDING' | 'CLAIMED' | 'PAID', paidVia?: 'TRANSFER' | 'CASH') {
+  if (status === 'PAID') return { paymentStatus: status, paidAt: new Date(), paidVia: paidVia ?? null };
+  if (status === 'CLAIMED') return { paymentStatus: status, paidAt: null, paidVia: null, claimedAt: new Date() };
   // Back to PENDING forgets the claim entirely, including the slip (frees its transRef).
   return {
     paymentStatus: status,
     paidAt: null,
+    paidVia: null,
     claimedAt: null,
     claimNote: null,
     slipCheck: null,

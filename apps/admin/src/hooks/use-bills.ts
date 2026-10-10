@@ -56,9 +56,16 @@ interface AdminBillDetail {
     slipReviewReason: string | null;
     slipAmount: number | null;
     slipImagePath: string | null;
+    paidVia: 'TRANSFER' | 'CASH' | null;
     pushStatus: 'PENDING' | 'SENT' | 'FAILED';
     pushError: string | null;
-    member: { id: string; customName: string; lineDisplayName: string; linePictureUrl: string | null };
+    member: {
+      id: string;
+      customName: string;
+      lineDisplayName: string;
+      linePictureUrl: string | null;
+      isGuest: boolean;
+    };
   }>;
 }
 
@@ -150,13 +157,15 @@ export function useMarkShare(billId: string) {
     mutationFn: ({
       shareId,
       status,
+      paidVia,
     }: {
       shareId: string;
       status: 'PENDING' | 'CLAIMED' | 'PAID';
+      paidVia?: 'TRANSFER' | 'CASH';
     }) =>
       apiFetch<{ billClosed: boolean }>(`/admin/bills/${billId}/shares/${shareId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ paymentStatus: status }),
+        body: JSON.stringify({ paymentStatus: status, paidVia }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-bill', billId] }),
   });
