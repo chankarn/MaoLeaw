@@ -16,7 +16,8 @@ import { ApiError } from '@/lib/api';
 import { compressImage } from '@/lib/image';
 import { isInLineClient } from '@/lib/liff';
 import { liffUrl } from '@/lib/links';
-import { billShareCard, shareToLine, toastShareResult } from '@/lib/share';
+import { billShareCard, billShareText } from '@/lib/share';
+import { ShareSheet } from '@/components/share-sheet';
 import { cn, formatBaht } from '@/lib/utils';
 
 export default function MyBillPage() {
@@ -26,6 +27,7 @@ export default function MyBillPage() {
   const { mutateAsync: claimPaid, isPending: claiming } = useClaimPaid(id);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [claimOpen, setClaimOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [note, setNote] = useState('');
   const [slipFile, setSlipFile] = useState<File | null>(null);
   const [slipPreview, setSlipPreview] = useState<string | null>(null);
@@ -318,19 +320,20 @@ export default function MyBillPage() {
       <section className="px-4 pt-4">
         <button
           type="button"
-          onClick={async () =>
-            toastShareResult(
-              await shareToLine(
-                billShareCard({ eventId: id, billName: bill.name }),
-                liffUrl(`/events/${id}/bill`),
-              ),
-            )
-          }
+          onClick={() => setSharing(true)}
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-amber-300 bg-white/70 px-4 py-3 text-sm font-medium text-amber-800 transition active:scale-[0.98]"
         >
           <Users className="h-4 w-4" />
           บอกเพื่อนในกลุ่มว่าบิลออกแล้ว
         </button>
+        <ShareSheet
+          open={sharing}
+          onClose={() => setSharing(false)}
+          title="บอกเพื่อนว่าบิลออกแล้ว"
+          lineMessage={billShareCard({ eventId: id, billName: bill.name })}
+          url={liffUrl(`/events/${id}/bill`)}
+          text={billShareText({ eventId: id, billName: bill.name })}
+        />
       </section>
 
       {/* ─── Sticky CTA (raised) ─── */}

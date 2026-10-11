@@ -20,7 +20,8 @@ import { cn } from '@/lib/utils';
 import type { DrinkChoice, MemberType } from '@maoleaw/shared';
 import { useMemberTypes } from '@/hooks/use-member-types';
 import { googleCalendarUrl, googleMapsUrl, liffUrl } from '@/lib/links';
-import { eventShareCard, openExternal, shareToLine, toastShareResult } from '@/lib/share';
+import { eventShareCard, eventShareText, openExternal } from '@/lib/share';
+import { ShareSheet } from '@/components/share-sheet';
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,7 @@ export default function EventDetailPage() {
   const [open, setOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<MemberType | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const { types: memberTypes, labelOf: memberTypeLabel } = useMemberTypes();
 
   useEffect(() => {
@@ -120,16 +122,17 @@ export default function EventDetailPage() {
           <HeroAction
             icon={<Share2 className="h-3.5 w-3.5" />}
             label="ชวนเพื่อน"
-            onClick={async () =>
-              toastShareResult(
-                await shareToLine(
-                  eventShareCard({ ...event, attendeeCount: stats.total }),
-                  liffUrl(`/events/${event.id}`),
-                ),
-              )
-            }
+            onClick={() => setSharing(true)}
           />
         </div>
+        <ShareSheet
+          open={sharing}
+          onClose={() => setSharing(false)}
+          title="ชวนเพื่อนมางานนี้"
+          lineMessage={eventShareCard({ ...event, attendeeCount: stats.total })}
+          url={liffUrl(`/events/${event.id}`)}
+          text={eventShareText(event)}
+        />
       </header>
 
       {/* ─── Stats cards ─── */}

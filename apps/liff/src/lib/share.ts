@@ -58,6 +58,25 @@ export function eventShareCard(e: { id: string; name: string; venue: string; eve
   );
 }
 
+/** Plain-text invite for apps other than LINE (Messenger, Discord, IG…). */
+export function eventShareText(e: { id: string; name: string; venue: string; eventDate: string }) {
+  return [
+    `🍻 ${e.name}`,
+    `📅 ${thaiDateTime(e.eventDate)}`,
+    `📍 ${e.venue}`,
+    `กดลงชื่อ (เปิดใน LINE) 👉 ${liffUrl(`/events/${e.id}`)}`,
+  ].join('\n');
+}
+
+/** Plain-text "บิลออกแล้ว" for apps other than LINE. */
+export function billShareText(e: { eventId: string; billName: string }) {
+  return [
+    `💸 บิลออกแล้ว: ${e.billName}`,
+    'เข้าไปดูยอดของตัวเอง สแกน QR แล้วแนบสลิปได้เลย',
+    `เปิดใน LINE 👉 ${liffUrl(`/events/${e.eventId}/bill`)}`,
+  ].join('\n');
+}
+
 /** "บิลออกแล้ว" card — no amounts, each person opens their own share. */
 export function billShareCard(e: { eventId: string; billName: string }) {
   return card(
@@ -91,6 +110,34 @@ export async function shareToLine(message: object, fallbackUrl: string): Promise
   }
 }
 
+/** Whether the phone's own share sheet (Web Share API) exists here — not in every LINE WebView. */
+export function canShareNatively(): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+}
+
+/** Phone share sheet (any installed app); falls back to copying the text. */
+export async function shareElsewhere(text: string): Promise<ShareResult> {
+  if (canShareNatively()) {
+    try {
+      await navigator.share({ text });
+      return 'shared';
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
+      console.error('navigator.share failed', err);
+    }
+  }
+  return copyShareText(text);
+}
+
+export async function copyShareText(text: string): Promise<ShareResult> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return 'copied';
+  } catch {
+    return 'failed';
+  }
+}
+
 /** Open a URL outside the LINE WebView (Maps / Calendar apps), or a new tab elsewhere. */
 export async function openExternal(url: string) {
   try {
@@ -110,7 +157,7 @@ export function toastShareResult(result: ShareResult) {
   // Imported lazily so this module stays usable outside React (e.g. card validation).
   void import('sonner').then(({ toast }) => {
     if (result === 'shared') toast.success('แชร์แล้ว');
-    else if (result === 'copied') toast.success('คัดลอกลิงก์แล้ว วางในแชทกลุ่มได้เลย');
+    else if (result === 'copied') toast.success('คัดลอกแล้ว วางในแชทได้เลย');
     else if (result === 'failed') toast.error('แชร์ไม่สำเร็จ');
   });
 }
