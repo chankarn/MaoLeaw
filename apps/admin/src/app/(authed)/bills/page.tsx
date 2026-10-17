@@ -108,7 +108,7 @@ export default function BillsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="-mb-5 mt-4 flex gap-1 border-b">
+        <div className="-mb-5 mt-4 flex gap-1 overflow-x-auto border-b" style={{ scrollbarWidth: 'none' }}>
           {(
             [
               { v: 'all', label: 'All' },
@@ -122,7 +122,7 @@ export default function BillsPage() {
               key={t.v}
               onClick={() => setTab(t.v)}
               className={cn(
-                'flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm transition-colors',
+                'flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors',
                 tab === t.v
                   ? 'border-white font-semibold text-white'
                   : 'border-transparent text-white/70 hover:text-white',

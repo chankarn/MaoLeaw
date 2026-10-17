@@ -146,7 +146,7 @@ export default function EventsPage() {
                   className="absolute inset-0 z-0 rounded-lg"
                   aria-label={`แก้ ${ev.name}`}
                 />
-                <div className="relative z-10 flex items-start gap-4">
+                <div className="relative z-10 flex items-start gap-3 sm:gap-4">
                   {/* Date ticket */}
                   <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-primary to-amber-600 text-white shadow-sm">
                     <span className="text-[9px] font-medium uppercase">
@@ -157,10 +157,10 @@ export default function EventsPage() {
                     </span>
                   </div>
 
-                  <div className="flex-1">
-                    <div className="mb-2 flex items-start gap-2">
-                      <h3 className="text-lg font-semibold leading-tight">{ev.name}</h3>
-                      <div className="flex shrink-0 gap-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex flex-wrap items-start gap-x-2 gap-y-1">
+                      <h3 className="min-w-0 break-words text-lg font-semibold leading-tight">{ev.name}</h3>
+                      <div className="flex flex-wrap gap-1">
                         <Badge variant={ev.status === 'ACTIVE' ? 'success' : 'secondary'}>
                           ● {ev.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                         </Badge>

@@ -413,7 +413,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
             </div>
 
             <div className="space-y-3">
-              <div className="grid grid-cols-[1fr_110px_150px_140px_40px] gap-2 px-1 text-xs text-muted-foreground">
+              <div className="hidden grid-cols-[1fr_110px_150px_140px_40px] gap-2 px-1 text-xs text-muted-foreground sm:grid">
                 <span>ชื่อ</span>
                 <span>ราคา (฿)</span>
                 <span>ประเภท</span>
@@ -448,15 +448,20 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                         AI ไม่แน่ใจประเภทของรายการนี้ ช่วยเช็คอีกที
                       </p>
                     )}
-                    <div className="grid grid-cols-[1fr_110px_150px_140px_40px] gap-2">
+                    {/* Phone: name · price · delete / type · people. sm+: one row. */}
+                    <div className="grid grid-cols-6 gap-2 sm:grid-cols-[1fr_110px_150px_140px_40px]">
                       <Input
+                        className="col-span-3 sm:col-span-1"
                         value={r.name}
                         onChange={(e) => updateRow(idx, { name: e.target.value })}
                         placeholder="ชื่อรายการ"
                         maxLength={100}
                       />
                       <Input
+                        className="col-span-2 sm:col-span-1"
                         type="number"
+                        inputMode="numeric"
+                        placeholder="ราคา"
                         min={0}
                         value={r.price === '' ? '' : r.price}
                         onChange={(e) =>
@@ -477,7 +482,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                           })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="order-2 col-span-3 sm:order-none sm:col-span-1">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -491,7 +496,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
 
                       {isShared ? (
                         // SHARED — read-only count, no picker needed
-                        <div className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 text-sm text-muted-foreground">
+                        <div className="order-3 col-span-3 flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 text-sm text-muted-foreground sm:order-none sm:col-span-1">
                           <Users className="h-3.5 w-3.5" />
                           <span className="font-mono tabular-nums">{eligibleCount}</span>
                           <span className="text-xs">คน</span>
@@ -503,7 +508,7 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                           size="sm"
                           onClick={() => updateRow(idx, { expanded: !r.expanded })}
                           disabled={!canExpand}
-                          className="justify-start gap-1.5 px-2"
+                          className="order-3 col-span-3 h-10 justify-start gap-1.5 px-2 sm:order-none sm:col-span-1 sm:h-9"
                         >
                           <Users className="h-3.5 w-3.5" />
                           <span className="font-mono tabular-nums">{eligibleCount}</span>
@@ -523,8 +528,10 @@ export function BillForm({ initial, presetEventId = '' }: Props) {
                       )}
 
                       <Button
+                        className="order-1 w-full sm:order-none sm:w-10"
                         variant="ghost"
                         size="icon"
+                        aria-label="ลบรายการ"
                         onClick={() => removeRow(idx)}
                         disabled={rows.length === 1}
                         type="button"

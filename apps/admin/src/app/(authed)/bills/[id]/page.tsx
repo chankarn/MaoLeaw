@@ -209,7 +209,7 @@ export default function BillDetailPage() {
       <header className="border-b border-amber-700 bg-gradient-to-r from-primary to-amber-500 px-4 py-4 text-white md:px-8 md:py-5">
         <button
           onClick={() => router.back()}
-          className="mb-2 inline-flex items-center gap-1 text-xs text-white/80 hover:text-white"
+          className="-ml-1 mb-1 inline-flex items-center gap-1 px-1 py-1.5 text-xs text-white/80 hover:text-white"
         >
           <ArrowLeft className="h-3 w-3" />
           กลับ
@@ -356,7 +356,7 @@ export default function BillDetailPage() {
                   <li
                     key={s.id}
                     className={cn(
-                      'flex items-center gap-3 p-4 transition-colors',
+                      'flex flex-wrap items-center gap-3 p-4 transition-colors',
                       isSelected && 'bg-primary/5',
                     )}
                   >
@@ -407,23 +407,45 @@ export default function BillDetailPage() {
                       <p className="font-mono text-lg font-bold tabular-nums text-primary">
                         {formatBaht(s.amount)}
                       </p>
-                      <RowActions
-                        share={s}
-                        onMark={(status, paidVia) =>
-                          mark.mutate(
-                            { shareId: s.id, status, paidVia },
-                            { onSuccess: (r) => r.billClosed && toast.success(AUTO_CLOSED_MSG) },
-                          )
-                        }
-                        onReject={() =>
-                          setRejecting({
-                            id: s.id,
-                            name: s.member.customName || s.member.lineDisplayName,
-                            amount: s.amount,
-                          })
-                        }
-                        disabled={mark.isPending}
-                      />
+                      <div className="hidden sm:block">
+                        <RowActions
+                          share={s}
+                          onMark={(status, paidVia) =>
+                            mark.mutate(
+                              { shareId: s.id, status, paidVia },
+                              { onSuccess: (r) => r.billClosed && toast.success(AUTO_CLOSED_MSG) },
+                            )
+                          }
+                          onReject={() =>
+                            setRejecting({
+                              id: s.id,
+                              name: s.member.customName || s.member.lineDisplayName,
+                              amount: s.amount,
+                            })
+                          }
+                          disabled={mark.isPending}
+                        />
+                      </div>
+                    </div>
+                    {/* Phone: actions get their own full-width line, bigger targets */}
+                    <div className="w-full sm:hidden">
+                        <RowActions
+                          share={s}
+                          onMark={(status, paidVia) =>
+                            mark.mutate(
+                              { shareId: s.id, status, paidVia },
+                              { onSuccess: (r) => r.billClosed && toast.success(AUTO_CLOSED_MSG) },
+                            )
+                          }
+                          onReject={() =>
+                            setRejecting({
+                              id: s.id,
+                              name: s.member.customName || s.member.lineDisplayName,
+                              amount: s.amount,
+                            })
+                          }
+                          disabled={mark.isPending}
+                        />
                     </div>
                   </li>
                 );
@@ -639,7 +661,7 @@ function RowActions({
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 text-[11px] text-stone-500"
+          className="h-9 text-xs text-stone-500 sm:h-7 sm:text-[11px]"
           onClick={() => onMark('PENDING')}
           disabled={disabled}
         >
@@ -653,7 +675,7 @@ function RowActions({
       <div className="mt-1 flex gap-1">
         <Button
           size="sm"
-          className="h-7 bg-emerald-600 px-2 text-[11px] hover:bg-emerald-700"
+          className="h-9 bg-emerald-600 px-3 text-xs hover:bg-emerald-700 sm:h-7 sm:px-2 sm:text-[11px]"
           onClick={() => onMark('PAID', 'TRANSFER')}
           disabled={disabled}
         >
@@ -662,7 +684,7 @@ function RowActions({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 px-2 text-[11px]"
+          className="h-9 px-3 text-xs sm:h-7 sm:px-2 sm:text-[11px]"
           onClick={onReject}
           disabled={disabled}
           title="ไม่ผ่าน — แจ้งผู้ใช้ทาง LINE"
@@ -677,7 +699,7 @@ function RowActions({
       <Button
         size="sm"
         variant="outline"
-        className="h-7 px-2 text-[11px]"
+        className="h-9 px-3 text-xs sm:h-7 sm:px-2 sm:text-[11px]"
         onClick={() => onMark('PAID', 'CASH')}
         disabled={disabled}
         title="ได้รับเงินสดแล้ว"
@@ -687,7 +709,7 @@ function RowActions({
       <Button
         size="sm"
         variant="outline"
-        className="h-7 px-2 text-[11px]"
+        className="h-9 px-3 text-xs sm:h-7 sm:px-2 sm:text-[11px]"
         onClick={() => onMark('PAID', 'TRANSFER')}
         disabled={disabled}
         title="เห็นยอดโอนเข้าแล้ว (ไม่ได้แนบสลิป)"

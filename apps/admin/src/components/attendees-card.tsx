@@ -70,10 +70,10 @@ export function AttendeesCard({
                 type="button"
                 onClick={() => handleRemove(a)}
                 disabled={remove.isPending}
-                className="rounded-full p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                className="-my-1 rounded-full p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-600"
                 aria-label={`เอา ${a.name} ออก`}
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </li>
           ))}

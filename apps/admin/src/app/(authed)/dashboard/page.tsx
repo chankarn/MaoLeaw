@@ -65,7 +65,7 @@ export default function DashboardPage() {
                 key={t.value}
                 onClick={() => setRange(t.value)}
                 className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  'rounded-md px-3 py-2 text-xs font-medium transition-colors sm:py-1.5',
                   range === t.value
                     ? 'bg-primary text-white shadow-sm'
                     : 'text-stone-600 hover:bg-stone-100',
@@ -80,7 +80,7 @@ export default function DashboardPage() {
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7"
+              className="h-9 w-9 sm:h-7 sm:w-7"
               onClick={() => {
                 refetch();
                 toast.success('Refresh แล้ว');

@@ -97,8 +97,8 @@ export default function MembersPage() {
                 <TableHead className="hidden sm:table-cell">Type</TableHead>
                 <TableHead className="hidden md:table-cell">Drink</TableHead>
                 <TableHead className="hidden sm:table-cell text-right">Events</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-24" />
+                <TableHead className="hidden sm:table-cell">Status</TableHead>
+                <TableHead className="w-16 sm:w-24" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -129,7 +129,7 @@ export default function MembersPage() {
                   const typeLabel = MEMBER_TYPES.find((t) => t.value === m.memberType)?.label ?? m.memberType;
                   return (
                     <TableRow key={m.id} className={cn(m.banned && 'opacity-60')}>
-                      <TableCell>
+                      <TableCell className="max-w-[230px] sm:max-w-none">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">
                             {m.pictureUrl && <AvatarImage src={m.pictureUrl} alt={m.customName} />}
@@ -143,6 +143,7 @@ export default function MembersPage() {
                             </p>
                             <p className="truncate text-[11px] text-muted-foreground">
                               {m.isGuest ? 'แขก · ไม่มี LINE' : `LINE: ${m.displayName}`}
+                              {m.banned && <span className="ml-1 font-medium text-red-600 sm:hidden">· Banned</span>}
                             </p>
                           </div>
                         </div>
@@ -152,7 +153,7 @@ export default function MembersPage() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm">{DRINK_LABEL[m.preferredDrink]}</TableCell>
                       <TableCell className="hidden sm:table-cell text-right font-mono tabular-nums">{m.totalEvents}</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         {m.banned ? (
                           <Badge variant="destructive">
                             <ShieldOff className="mr-1 h-3 w-3" />
