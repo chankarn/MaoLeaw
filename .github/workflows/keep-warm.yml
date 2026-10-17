@@ -1,4 +1,10 @@
 # File: .github/workflows/keep-warm.yml
+# NOTE (2026-10-17): GitHub runs scheduled workflows best-effort — in practice this one
+# fired only 2–4 times a day, often hours late, so it can't keep Render awake or hit the
+# 13:00 auto-reminder window. The primary wake-up is an external cron-job.org job
+# (GET /v1/health/db every 10 min at 13:00 and 17:00–01:59 Asia/Bangkok). This workflow
+# stays as a fallback that keeps Supabase from pausing.
+#
 # Keeps the free tiers alive:
 #   - Render spins the API down after 15 min idle → ping it, but only during party
 #     hours: 17:00–02:00 Bangkok (10:00–19:00 UTC). Staying up 24/7 burns ~744 of the

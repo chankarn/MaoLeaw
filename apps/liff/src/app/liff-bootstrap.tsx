@@ -27,7 +27,7 @@ export function LiffBootstrap({ children }: { children: React.ReactNode }) {
         <p className="text-sm text-stone-500">กำลังเข้าสู่ระบบ…</p>
         {slow && (
           <p className="text-xs text-stone-400">
-            ช่วงกลางวันเซิร์ฟเวอร์พักอยู่ รอปลุกสักครู่ (ไม่เกิน 1 นาที) 😴
+            เซิร์ฟเวอร์กำลังตื่น รอสักครู่ (ไม่เกิน 1 นาที) 😴
           </p>
         )}
       </div>
