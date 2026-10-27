@@ -128,7 +128,8 @@ model Member {
   linePictureUrl  String?
   customName      String
   preferredDrink  DrinkPreference
-  memberType      MemberType
+  // No longer collected or shown (removed 2026-10-27); kept so existing data survives.
+  memberType      MemberType      @default(FRIEND)
   banned          Boolean         @default(false)
   // Walk-in added by an admin: no LINE account (lineUserId is a "guest:<uuid>" placeholder),
   // never receives pushes, settles in cash/transfer marked by the admin.

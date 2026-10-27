@@ -123,7 +123,6 @@ export class AdminDashboardService {
           customName: true,
           lineDisplayName: true,
           linePictureUrl: true,
-          memberType: true,
           createdAt: true,
         },
       }),
@@ -156,7 +155,6 @@ export class AdminDashboardService {
             lineDisplayName: true,
             linePictureUrl: true,
             preferredDrink: true,
-            memberType: true,
           },
         })
       : [];
@@ -218,7 +216,7 @@ export class AdminDashboardService {
         at: m.createdAt.toISOString(),
         memberName: m.customName || m.lineDisplayName,
         pictureUrl: m.linePictureUrl,
-        detail: `เข้าร่วม MaoLeaw (${m.memberType})`,
+        detail: 'เข้าร่วม MaoLeaw',
       });
     }
     activities.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -292,7 +290,6 @@ export class AdminDashboardService {
             name: m.customName || m.lineDisplayName,
             pictureUrl: m.linePictureUrl,
             preferredDrink: m.preferredDrink,
-            memberType: m.memberType,
             totalAmount: t._sum.amount ?? 0,
             billsCount: t._count,
           };

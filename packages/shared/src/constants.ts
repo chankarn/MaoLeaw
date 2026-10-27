@@ -1,16 +1,5 @@
 // File: packages/shared/src/constants.ts
-import type { MemberType, DrinkPreference, DrinkChoice, BankCode } from './types';
-
-export const MEMBER_TYPES: readonly { value: MemberType; label: string }[] = [
-  { value: 'BD', label: 'เด็ก BD' },
-  { value: 'TL', label: 'เด็ก TL' },
-  { value: 'KU', label: 'เด็ก KU' },
-  { value: 'SWU', label: 'เด็ก SWU' },
-  { value: 'CU', label: 'เด็ก CU' },
-  { value: 'KMITL', label: 'เด็ก KMITL' },
-  { value: 'FRIEND', label: 'เพื่อนอีสเหล้า' },
-  { value: 'OTHER', label: 'อื่นๆ' },
-] as const;
+import type { DrinkPreference, DrinkChoice, BankCode } from './types';
 
 export const DRINK_PREFERENCES: readonly { value: DrinkPreference; label: string; emoji: string }[] = [
   { value: 'LIQUOR', label: 'เหล้า', emoji: '🥃' },

@@ -48,7 +48,6 @@ export class AuthService {
           linePictureUrl: profile.pictureUrl ?? null,
           customName: '',
           preferredDrink: 'LIQUOR',
-          memberType: 'OTHER',
         },
       });
     }
@@ -64,7 +63,6 @@ export class AuthService {
       pictureUrl: member.linePictureUrl,
       customName: member.customName,
       preferredDrink: member.preferredDrink,
-      memberType: member.memberType,
       isRegistered: member.customName.length > 0,
     };
 

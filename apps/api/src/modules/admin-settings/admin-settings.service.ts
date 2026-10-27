@@ -3,8 +3,6 @@ import { BadRequestException, Injectable, NotFoundException, UnauthorizedExcepti
 import { prisma } from '@maoleaw/db';
 import bcrypt from 'bcrypt';
 
-const SINGLETON_ID = 'singleton';
-
 @Injectable()
 export class AdminSettingsService {
   async getMe(adminId: string) {
@@ -44,34 +42,4 @@ export class AdminSettingsService {
     return { ok: true };
   }
 
-  async getConfig() {
-    const cfg = await prisma.appConfig.upsert({
-      where: { id: SINGLETON_ID },
-      update: {},
-      create: { id: SINGLETON_ID },
-    });
-    return {
-      memberTypeLabels: (cfg.memberTypeLabels as Record<string, string> | null) ?? {},
-      updatedAt: cfg.updatedAt.toISOString(),
-    };
-  }
-
-  async updateConfig(input: { memberTypeLabels?: Record<string, string> | null }) {
-    const cfg = await prisma.appConfig.upsert({
-      where: { id: SINGLETON_ID },
-      update: {
-        ...(input.memberTypeLabels !== undefined && {
-          memberTypeLabels: input.memberTypeLabels ?? undefined,
-        }),
-      },
-      create: {
-        id: SINGLETON_ID,
-        memberTypeLabels: input.memberTypeLabels ?? undefined,
-      },
-    });
-    return {
-      memberTypeLabels: (cfg.memberTypeLabels as Record<string, string> | null) ?? {},
-      updatedAt: cfg.updatedAt.toISOString(),
-    };
-  }
 }

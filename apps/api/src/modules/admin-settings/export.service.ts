@@ -78,7 +78,7 @@ export class ExportService {
       include: { _count: { select: { submissions: true } } },
     });
     const rows = [
-      ['ID', 'LineUserId', 'CustomName', 'LineDisplayName', 'Type', 'PreferredDrink', 'Events', 'Banned', 'CreatedAt'],
+      ['ID', 'LineUserId', 'CustomName', 'LineDisplayName', 'PreferredDrink', 'Events', 'Banned', 'CreatedAt'],
     ];
     for (const m of members) {
       rows.push([
@@ -86,7 +86,6 @@ export class ExportService {
         m.lineUserId,
         m.customName,
         m.lineDisplayName,
-        m.memberType,
         m.preferredDrink,
         String(m._count.submissions),
         m.banned ? 'true' : 'false',

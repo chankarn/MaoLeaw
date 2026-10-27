@@ -3,7 +3,6 @@
 
 export type DrinkPreference = 'LIQUOR' | 'BEER';
 export type DrinkChoice = 'LIQUOR' | 'BEER' | 'NONE';
-export type MemberType = 'BD' | 'TL' | 'KU' | 'SWU' | 'CU' | 'KMITL' | 'FRIEND' | 'OTHER';
 export type EventStatus = 'ACTIVE' | 'INACTIVE';
 export type BillStatus = 'DRAFT' | 'SENT' | 'CLOSED';
 export type BillItemType = 'LIQUOR' | 'BEER' | 'MIXER' | 'SHARED' | 'CUSTOM';
@@ -22,7 +21,6 @@ export interface MemberDto {
   pictureUrl: string | null;
   customName: string;
   preferredDrink: DrinkPreference;
-  memberType: MemberType;
   isRegistered: boolean;
 }
 
@@ -42,7 +40,6 @@ export interface AttendeeDto {
   name: string;
   pictureUrl: string | null;
   drinkChoice: DrinkChoice;
-  memberType: MemberType;
   isMe: boolean;
 }
 

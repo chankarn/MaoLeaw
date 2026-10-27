@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MEMBER_TYPES } from '@maoleaw/shared';
 import { useAdminMembers, useBanMember } from '@/hooks/use-members';
 import { cn } from '@/lib/utils';
 
@@ -18,20 +17,13 @@ const DRINK_LABEL = {
   BEER: '🍺 เบียร์',
 } as const;
 
-type TypeFilter = 'all' | (typeof MEMBER_TYPES)[number]['value'];
-
 export default function MembersPage() {
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const { data, isLoading } = useAdminMembers({ search });
   const ban = useBanMember();
 
   const allItems = data?.items ?? [];
-  const items = typeFilter === 'all' ? allItems : allItems.filter((m) => m.memberType === typeFilter);
-
-  const typeCounts = Object.fromEntries(
-    MEMBER_TYPES.map((t) => [t.value, allItems.filter((m) => m.memberType === t.value).length]),
-  );
+  const items = allItems;
 
   async function handleBan(id: string, current: boolean, name: string) {
     const action = current ? 'unban' : 'ban';
@@ -66,26 +58,6 @@ export default function MembersPage() {
           </div>
         </div>
 
-        {/* Type filter chips */}
-        <div className="-mb-5 mt-4 flex gap-1 overflow-x-auto border-b" style={{ scrollbarWidth: 'none' }}>
-          <FilterChip
-            active={typeFilter === 'all'}
-            onClick={() => setTypeFilter('all')}
-            count={allItems.length}
-          >
-            All
-          </FilterChip>
-          {MEMBER_TYPES.map((t) => (
-            <FilterChip
-              key={t.value}
-              active={typeFilter === t.value}
-              onClick={() => setTypeFilter(t.value)}
-              count={typeCounts[t.value] ?? 0}
-            >
-              {t.label}
-            </FilterChip>
-          ))}
-        </div>
       </header>
 
       <div className="p-4 md:p-8">
@@ -94,7 +66,6 @@ export default function MembersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Member</TableHead>
-                <TableHead className="hidden sm:table-cell">Type</TableHead>
                 <TableHead className="hidden md:table-cell">Drink</TableHead>
                 <TableHead className="hidden sm:table-cell text-right">Events</TableHead>
                 <TableHead className="hidden sm:table-cell">Status</TableHead>
@@ -117,16 +88,15 @@ export default function MembersPage() {
                   <TableCell colSpan={6} className="py-16 text-center">
                     <p className="text-3xl">👥</p>
                     <p className="mt-2 font-medium">
-                      {typeFilter !== 'all' || search ? 'ไม่พบสมาชิก' : 'ยังไม่มีสมาชิก'}
+                      {search ? 'ไม่พบสมาชิก' : 'ยังไม่มีสมาชิก'}
                     </p>
-                    {(typeFilter !== 'all' || search) && (
-                      <p className="text-sm text-muted-foreground">ลองเปลี่ยน filter หรือ search</p>
+                    {search && (
+                      <p className="text-sm text-muted-foreground">ลองค้นหาด้วยชื่ออื่น</p>
                     )}
                   </TableCell>
                 </TableRow>
               ) : (
                 items.map((m) => {
-                  const typeLabel = MEMBER_TYPES.find((t) => t.value === m.memberType)?.label ?? m.memberType;
                   return (
                     <TableRow key={m.id} className={cn(m.banned && 'opacity-60')}>
                       <TableCell className="max-w-[230px] sm:max-w-none">
@@ -147,9 +117,6 @@ export default function MembersPage() {
                             </p>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <Badge variant="outline">{typeLabel}</Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm">{DRINK_LABEL[m.preferredDrink]}</TableCell>
                       <TableCell className="hidden sm:table-cell text-right font-mono tabular-nums">{m.totalEvents}</TableCell>
@@ -181,39 +148,5 @@ export default function MembersPage() {
         </Card>
       </div>
     </div>
-  );
-}
-
-function FilterChip({
-  active,
-  count,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  count: number;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm transition-colors',
-        active
-          ? 'border-white font-semibold text-white'
-          : 'border-transparent text-white/70 hover:text-white',
-      )}
-    >
-      {children}
-      <span
-        className={cn(
-          'rounded px-1.5 py-0.5 text-[10px] font-medium',
-          active ? 'bg-white text-primary' : 'bg-white/20 text-white/80',
-        )}
-      >
-        {count}
-      </span>
-    </button>
   );
 }

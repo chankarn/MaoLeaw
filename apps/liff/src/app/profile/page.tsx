@@ -11,25 +11,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BottomTab } from '@/components/bottom-tab';
 import { OutstandingCard } from '@/components/outstanding-card';
 import { DRINK_PREFERENCES, MAX_CUSTOM_NAME_LENGTH } from '@maoleaw/shared';
-import { useMemberTypes } from '@/hooks/use-member-types';
-import type { DrinkPreference, MemberType } from '@maoleaw/shared';
+import type { DrinkPreference } from '@maoleaw/shared';
 import { useMe } from '@/hooks/use-auth';
 import { useUpdateMember } from '@/hooks/use-member';
 
 export default function ProfilePage() {
   const { data: me, isLoading } = useMe();
   const { mutateAsync, isPending } = useUpdateMember();
-  const { types: memberTypes, labelOf } = useMemberTypes();
 
   const [customName, setCustomName] = useState('');
   const [preferredDrink, setPreferredDrink] = useState<DrinkPreference | ''>('');
-  const [memberType, setMemberType] = useState<MemberType | ''>('');
 
   useEffect(() => {
     if (me) {
       setCustomName(me.customName);
       setPreferredDrink(me.preferredDrink);
-      setMemberType(me.memberType);
     }
   }, [me]);
 
@@ -45,12 +41,11 @@ export default function ProfilePage() {
   }
 
   async function handleSave() {
-    if (preferredDrink === '' || memberType === '') return;
+    if (preferredDrink === '') return;
     try {
       await mutateAsync({
         customName: customName.trim(),
         preferredDrink: preferredDrink as DrinkPreference,
-        memberType: memberType as MemberType,
       });
       toast.success('บันทึกแล้ว');
     } catch (err) {
@@ -58,7 +53,6 @@ export default function ProfilePage() {
     }
   }
 
-  const typeLabel = labelOf(me.memberType);
 
   return (
     <>
@@ -85,11 +79,6 @@ export default function ProfilePage() {
         <section className="mt-14 px-4 text-center">
           <h2 className="text-lg font-semibold">{me.customName || '(ยังไม่ตั้งชื่อ)'}</h2>
           <p className="text-xs text-muted-foreground">LINE: {me.displayName}</p>
-          {typeLabel && (
-            <span className="mt-2 inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              {typeLabel}
-            </span>
-          )}
         </section>
 
         <div className="mt-6 px-4">
@@ -117,21 +106,6 @@ export default function ProfilePage() {
                   {DRINK_PREFERENCES.map((d) => (
                     <SelectItem key={d.value} value={d.value}>
                       {d.emoji} {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>ประเภท</Label>
-              <Select value={memberType} onValueChange={(v) => setMemberType(v as MemberType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {memberTypes.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

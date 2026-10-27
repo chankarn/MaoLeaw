@@ -17,14 +17,12 @@ export class AdminMembersController {
     @Query('page') page = '1',
     @Query('limit') limit = '20',
     @Query('search') search?: string,
-    @Query('type') type?: string,
     @Query('banned') banned?: string,
   ) {
     return this.members.listAdmin({
       page: Math.max(1, Number(page) || 1),
       limit: Math.min(100, Math.max(1, Number(limit) || 20)),
       search,
-      type,
       banned: banned === undefined ? undefined : banned === 'true',
     });
   }

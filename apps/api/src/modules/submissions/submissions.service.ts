@@ -61,7 +61,6 @@ export class SubmissionsService {
             lineDisplayName: input.guestName,
             customName: input.guestName,
             preferredDrink: input.drinkChoice === 'BEER' ? 'BEER' : 'LIQUOR',
-            memberType: 'FRIEND',
           },
         });
       } else {

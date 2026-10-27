@@ -10,8 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DRINK_PREFERENCES, MAX_CUSTOM_NAME_LENGTH } from '@maoleaw/shared';
-import { useMemberTypes } from '@/hooks/use-member-types';
-import type { DrinkPreference, MemberType } from '@maoleaw/shared';
+import type { DrinkPreference } from '@maoleaw/shared';
 import { useLineProfile } from '@/hooks/use-auth';
 import { useRegisterMember } from '@/hooks/use-member';
 
@@ -19,18 +18,16 @@ export default function RegisterPage() {
   const router = useRouter();
   const { data: profile, isLoading: profileLoading } = useLineProfile();
   const { mutateAsync: register, isPending } = useRegisterMember();
-  const { types: memberTypes } = useMemberTypes();
 
   const [customName, setCustomName] = useState('');
   const [preferredDrink, setPreferredDrink] = useState<DrinkPreference | ''>('');
-  const [memberType, setMemberType] = useState<MemberType | ''>('');
 
   useEffect(() => {
     if (profile && !customName) setCustomName(profile.displayName);
   }, [profile, customName]);
 
   const trimmedName = customName.trim();
-  const canSubmit = trimmedName.length >= 1 && preferredDrink && memberType && !isPending;
+  const canSubmit = trimmedName.length >= 1 && preferredDrink && !isPending;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +35,6 @@ export default function RegisterPage() {
       await register({
         customName: trimmedName,
         preferredDrink: preferredDrink as DrinkPreference,
-        memberType: memberType as MemberType,
       });
       toast.success('ลงทะเบียนสำเร็จ! ยินดีต้อนรับ 🍻');
       router.replace('/');
@@ -52,7 +48,7 @@ export default function RegisterPage() {
       <main className="flex min-h-screen flex-col items-center justify-center bg-amber-50 px-5">
         <div className="mt-8 h-20 w-20 animate-pulse rounded-full bg-amber-200" />
         <div className="mt-6 w-full max-w-sm space-y-4">
-          {[1, 2, 3].map((i) => (
+          {[1, 2].map((i) => (
             <div key={i} className="h-12 animate-pulse rounded-xl bg-amber-200" />
           ))}
         </div>
@@ -134,23 +130,6 @@ export default function RegisterPage() {
                 {DRINK_PREFERENCES.map((d) => (
                   <SelectItem key={d.value} value={d.value}>
                     {d.emoji} {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Member type */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold text-stone-700">ฉันเป็น</Label>
-            <Select value={memberType} onValueChange={(v) => setMemberType(v as MemberType)}>
-              <SelectTrigger className="h-12 rounded-xl border-amber-200 bg-white shadow-sm">
-                <SelectValue placeholder="เลือกประเภท" />
-              </SelectTrigger>
-              <SelectContent>
-                {memberTypes.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
                   </SelectItem>
                 ))}
               </SelectContent>

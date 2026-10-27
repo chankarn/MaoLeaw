@@ -8,8 +8,6 @@ import {
   KeyRound,
   Lock,
   Receipt,
-  Settings as SettingsIcon,
-  Tag,
   User,
   Users,
 } from 'lucide-react';
@@ -18,23 +16,18 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MEMBER_TYPES } from '@maoleaw/shared';
 import {
-  useAppConfig,
   useChangePassword,
   useProfile,
-  useUpdateAppConfig,
   useUpdateProfile,
 } from '@/hooks/use-settings';
 import { downloadCsv } from '@/lib/download';
 import { cn } from '@/lib/utils';
 
-type Tab = 'profile' | 'app' | 'types' | 'export';
+type Tab = 'profile' | 'export';
 
 const TABS: { value: Tab; label: string; icon: React.ReactNode }[] = [
   { value: 'profile', label: 'Profile', icon: <User className="h-4 w-4" /> },
-  { value: 'app', label: 'App Config', icon: <SettingsIcon className="h-4 w-4" /> },
-  { value: 'types', label: 'Member Types', icon: <Tag className="h-4 w-4" /> },
   { value: 'export', label: 'Export Data', icon: <Download className="h-4 w-4" /> },
 ];
 
@@ -70,8 +63,6 @@ export default function SettingsPage() {
 
         <div className="max-w-2xl">
           {tab === 'profile' && <ProfileTab />}
-          {tab === 'app' && <AppConfigTab />}
-          {tab === 'types' && <MemberTypesTab />}
           {tab === 'export' && <ExportTab />}
         </div>
       </div>
@@ -199,105 +190,6 @@ function ProfileTab() {
         </div>
       </Card>
     </div>
-  );
-}
-
-/* ═══════════════════════ App Config Tab ═══════════════════════ */
-
-function AppConfigTab() {
-  const { data: cfg, isLoading } = useAppConfig();
-
-  if (isLoading || !cfg) return <Skeleton />;
-
-  return (
-    <div className="space-y-6">
-      <Card className="space-y-4 p-6">
-        <SectionTitle icon={<SettingsIcon className="h-4 w-4" />} title="App Config" />
-        <p className="text-sm text-muted-foreground">
-          ตั้งค่าระบบทั่วไป — ช่องทางชำระเงินตั้งได้ตอนสร้าง Bill แต่ละงาน
-        </p>
-        <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-          ขณะนี้ยังไม่มี config เพิ่มเติม — ดู Member Type Labels ในแท็บ Labels
-        </p>
-      </Card>
-    </div>
-  );
-}
-
-/* ═══════════════════════ Member Types Tab ═══════════════════════ */
-
-function MemberTypesTab() {
-  const { data: cfg, isLoading } = useAppConfig();
-  const update = useUpdateAppConfig();
-  const [labels, setLabels] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (cfg) {
-      const init: Record<string, string> = {};
-      for (const t of MEMBER_TYPES) {
-        init[t.value] = cfg.memberTypeLabels[t.value] ?? t.label;
-      }
-      setLabels(init);
-    }
-  }, [cfg]);
-
-  async function save() {
-    try {
-      // Only send labels that differ from default
-      const overrides: Record<string, string> = {};
-      for (const t of MEMBER_TYPES) {
-        if (labels[t.value] && labels[t.value] !== t.label) {
-          overrides[t.value] = labels[t.value]!;
-        }
-      }
-      await update.mutateAsync({ memberTypeLabels: overrides });
-      toast.success('บันทึก labels แล้ว');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
-    }
-  }
-
-  function reset() {
-    const init: Record<string, string> = {};
-    for (const t of MEMBER_TYPES) init[t.value] = t.label;
-    setLabels(init);
-  }
-
-  if (isLoading || !cfg) return <Skeleton />;
-
-  return (
-    <Card className="space-y-4 p-6">
-      <SectionTitle icon={<Tag className="h-4 w-4" />} title="Member Type Labels" />
-      <p className="text-sm text-muted-foreground">
-        เปลี่ยนชื่อแสดงผลของประเภทสมาชิก (ค่า enum ใน DB คงเดิม — เปลี่ยนแค่ display name)
-      </p>
-
-      <div className="space-y-2">
-        {MEMBER_TYPES.map((t) => (
-          <div key={t.value} className="grid grid-cols-[80px_1fr] items-center gap-3">
-            <span className="rounded bg-stone-100 px-2 py-1 font-mono text-xs text-stone-600">
-              {t.value}
-            </span>
-            <Input
-              value={labels[t.value] ?? ''}
-              onChange={(e) =>
-                setLabels((prev) => ({ ...prev, [t.value]: e.target.value.slice(0, 50) }))
-              }
-              placeholder={t.label}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-end gap-2 pt-2">
-        <Button variant="outline" onClick={reset}>
-          Reset to default
-        </Button>
-        <Button onClick={save} disabled={update.isPending}>
-          {update.isPending ? 'กำลังบันทึก…' : 'บันทึก Labels'}
-        </Button>
-      </div>
-    </Card>
   );
 }
 

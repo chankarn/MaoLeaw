@@ -56,7 +56,6 @@ export interface DashboardData {
     name: string;
     pictureUrl: string | null;
     preferredDrink: 'LIQUOR' | 'BEER';
-    memberType: string;
     totalAmount: number;
     billsCount: number;
   }>;

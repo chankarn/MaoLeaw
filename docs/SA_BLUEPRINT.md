@@ -1352,6 +1352,10 @@ API (BillsService.claimPaid):
 
 Admin mark PENDING ล้างข้อมูลสลิปทั้งหมด (คืน transRef ให้ใช้ใหม่ได้)
 
+### 9.2.8 Member type removed (2026-10-27)
+- Sign-up asks only name + favourite drink. Member type (university) is no longer collected, shown, filtered or exported anywhere (LIFF register/profile/event list, admin members/settings/dashboard, CSV, `/config` + `/admin/settings/config` endpoints).
+- Data kept on purpose: `Member.memberType` stays with `@default(FRIEND)` (21 members had values; 8 had picked FRIEND/OTHER). `AppConfig.memberTypeLabels` is unused. Drop both in a later migration if they stay unneeded — or reuse as per-group tags.
+
 ### 9.2.9 Walk-in attendees & cash payments (2026-10-11)
 - Admin edits attendance from the bill form (new/edit while DRAFT): `POST /admin/events/:eventId/attendees` `{ memberId | guestName, drinkChoice }`, `DELETE /admin/events/:eventId/attendees/:memberId`. Same lock as members: only while the event has no bill or a DRAFT bill; DRAFT shares are recomputed, and a removed member is stripped from items' extra/custom payer lists first.
 - **Guests** (`Member.isGuest`): people without LINE in the system. Created on the fly with `lineUserId = "guest:<uuid>"`, `memberType FRIEND`. Never pushed to (bill notification, manual and auto reminders skip them), excluded from dashboard member counts, deleted when removed from their last event.

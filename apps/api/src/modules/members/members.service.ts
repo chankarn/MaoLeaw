@@ -1,7 +1,7 @@
 // File: apps/api/src/modules/members/members.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@maoleaw/db';
-import type { DrinkPreference, MemberDto, MemberType, RegisterMemberInput, UpdateMemberInput } from '@maoleaw/shared';
+import type { DrinkPreference, MemberDto, RegisterMemberInput, UpdateMemberInput } from '@maoleaw/shared';
 
 @Injectable()
 export class MembersService {
@@ -17,7 +17,6 @@ export class MembersService {
       data: {
         customName: input.customName,
         preferredDrink: input.preferredDrink,
-        memberType: input.memberType,
       },
     });
     return this.toDto(m);
@@ -35,7 +34,6 @@ export class MembersService {
     page: number;
     limit: number;
     search?: string;
-    type?: string;
     banned?: boolean;
   }) {
     const where = {
@@ -45,7 +43,6 @@ export class MembersService {
           { lineDisplayName: { contains: opts.search, mode: 'insensitive' as const } },
         ],
       }),
-      ...(opts.type && { memberType: opts.type as never }),
       ...(opts.banned !== undefined && { banned: opts.banned }),
     };
 
@@ -85,7 +82,6 @@ export class MembersService {
     linePictureUrl: string | null;
     customName: string;
     preferredDrink: DrinkPreference;
-    memberType: MemberType;
   }): MemberDto {
     return {
       id: m.id,
@@ -94,7 +90,6 @@ export class MembersService {
       pictureUrl: m.linePictureUrl,
       customName: m.customName,
       preferredDrink: m.preferredDrink,
-      memberType: m.memberType,
       isRegistered: m.customName.length > 0,
     };
   }

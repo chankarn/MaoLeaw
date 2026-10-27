@@ -17,10 +17,6 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(10),
 });
 
-const updateConfigSchema = z.object({
-  memberTypeLabels: z.record(z.string(), z.string().min(1).max(50)).nullable().optional(),
-});
-
 @Controller('/admin/settings')
 @UseGuards(JwtAuthGuard)
 @Roles('ADMIN')
@@ -46,15 +42,5 @@ export class AdminSettingsController {
     @Body(new ZodValidationPipe(changePasswordSchema)) body: z.infer<typeof changePasswordSchema>,
   ) {
     return this.svc.changePassword(user.sub, body.currentPassword, body.newPassword);
-  }
-
-  @Get('/config')
-  getConfig() {
-    return this.svc.getConfig();
-  }
-
-  @Patch('/config')
-  updateConfig(@Body(new ZodValidationPipe(updateConfigSchema)) body: z.infer<typeof updateConfigSchema>) {
-    return this.svc.updateConfig(body);
   }
 }

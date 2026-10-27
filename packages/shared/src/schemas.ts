@@ -11,7 +11,6 @@ import {
 
 export const drinkPreferenceSchema = z.enum(['LIQUOR', 'BEER']);
 export const drinkChoiceSchema = z.enum(['LIQUOR', 'BEER', 'NONE']);
-export const memberTypeSchema = z.enum(['BD', 'TL', 'KU', 'SWU', 'CU', 'KMITL', 'FRIEND', 'OTHER']);
 export const eventStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
 export const billStatusSchema = z.enum(['DRAFT', 'SENT', 'CLOSED']);
 export const billItemTypeSchema = z.enum(['LIQUOR', 'BEER', 'MIXER', 'SHARED', 'CUSTOM']);
@@ -21,7 +20,6 @@ export const bankCodeSchema = z.enum(['BBL', 'KBANK', 'KTB', 'SCB', 'BAY', 'TTB'
 export const registerMemberSchema = z.object({
   customName: z.string().trim().min(1, 'กรุณาใส่ชื่อ').max(MAX_CUSTOM_NAME_LENGTH),
   preferredDrink: drinkPreferenceSchema,
-  memberType: memberTypeSchema,
 });
 export type RegisterMemberInput = z.infer<typeof registerMemberSchema>;
 

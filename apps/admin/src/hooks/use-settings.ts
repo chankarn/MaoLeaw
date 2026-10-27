@@ -11,11 +11,6 @@ export interface AdminProfile {
   updatedAt: string;
 }
 
-export interface AppConfig {
-  memberTypeLabels: Record<string, string>;
-  updatedAt: string;
-}
-
 export function useProfile() {
   return useQuery({
     queryKey: ['admin-profile'],
@@ -42,24 +37,5 @@ export function useChangePassword() {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-  });
-}
-
-export function useAppConfig() {
-  return useQuery({
-    queryKey: ['admin-app-config'],
-    queryFn: () => apiFetch<AppConfig>('/admin/settings/config'),
-  });
-}
-
-export function useUpdateAppConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { memberTypeLabels?: Record<string, string> | null }) =>
-      apiFetch<AppConfig>('/admin/settings/config', {
-        method: 'PATCH',
-        body: JSON.stringify(input),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-app-config'] }),
   });
 }

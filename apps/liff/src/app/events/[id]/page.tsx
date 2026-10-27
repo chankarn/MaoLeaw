@@ -2,7 +2,7 @@
 'use client';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CalendarPlus, Clock, Filter, Map as MapIcon, MapPin, Share2, Users } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Clock, Map as MapIcon, MapPin, Share2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -17,8 +17,7 @@ import { useEventDetail } from '@/hooks/use-events';
 import { useMe } from '@/hooks/use-auth';
 import { useSubmitAttendance } from '@/hooks/use-submission';
 import { cn } from '@/lib/utils';
-import type { DrinkChoice, MemberType } from '@maoleaw/shared';
-import { useMemberTypes } from '@/hooks/use-member-types';
+import type { DrinkChoice } from '@maoleaw/shared';
 import { googleCalendarUrl, googleMapsUrl, liffUrl } from '@/lib/links';
 import { eventShareCard, eventShareText, openExternal } from '@/lib/share';
 import { ShareSheet } from '@/components/share-sheet';
@@ -29,10 +28,7 @@ export default function EventDetailPage() {
   const { data, isLoading, isError, refetch } = useEventDetail(id);
   const { data: me } = useMe();
   const [open, setOpen] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<MemberType | null>(null);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const { types: memberTypes, labelOf: memberTypeLabel } = useMemberTypes();
 
   useEffect(() => {
     if (data?.event.isPast && data.event.hasBill) {
@@ -46,8 +42,6 @@ export default function EventDetailPage() {
   const { event, stats, attendees, mySubmission } = data;
   const date = new Date(event.eventDate);
   const countdown = getCountdown(date);
-  const availableTypes = Array.from(new Set(attendees.map((a) => a.memberType)));
-  const filtered = typeFilter ? attendees.filter((a) => a.memberType === typeFilter) : attendees;
 
   return (
     <main
@@ -199,88 +193,20 @@ export default function EventDetailPage() {
 
       {/* ─── Attendee list ─── */}
       <section className="relative mt-6 px-4">
-        <div className="mb-3 flex items-center gap-2">
-          <h2 className="shrink-0 font-semibold">รายชื่อ</h2>
-
-          {/* Horizontal chip strip — slides out from filter icon */}
-          <div
-            className={cn(
-              'flex-1 overflow-hidden transition-all duration-300 ease-out',
-              filterOpen ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0',
-            )}
-          >
-            <div
-              className="flex gap-2 overflow-x-auto pr-2"
-              style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
-            >
-              <FilterChip active={typeFilter === null} onClick={() => setTypeFilter(null)}>
-                ทั้งหมด · {attendees.length}
-              </FilterChip>
-              {memberTypes.filter((t) => availableTypes.includes(t.value)).map((t) => {
-                const count = attendees.filter((a) => a.memberType === t.value).length;
-                return (
-                  <FilterChip
-                    key={t.value}
-                    active={typeFilter === t.value}
-                    onClick={() =>
-                      setTypeFilter(typeFilter === t.value ? null : t.value)
-                    }
-                  >
-                    {t.label} · {count}
-                  </FilterChip>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Count — collapses when filter open */}
-          <span
-            className={cn(
-              'shrink-0 overflow-hidden whitespace-nowrap text-xs text-muted-foreground transition-all duration-300',
-              filterOpen ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100',
-            )}
-          >
-            {filtered.length}
-            {typeFilter && ` / ${attendees.length}`} คน
-          </span>
-
-          {attendees.length > 0 && availableTypes.length > 1 && (
-            <button
-              onClick={() => setFilterOpen((v) => !v)}
-              className={cn(
-                'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
-                filterOpen || typeFilter
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-stone-200 bg-white text-stone-600 hover:border-primary/40 hover:text-primary',
-              )}
-              aria-label={filterOpen ? 'ปิดตัวกรอง' : 'กรองตามประเภท'}
-            >
-              <Filter
-                className={cn(
-                  'h-4 w-4 transition-all duration-300',
-                  filterOpen && 'rotate-180 scale-90',
-                )}
-              />
-              {typeFilter && !filterOpen && (
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-amber-50" />
-              )}
-            </button>
-          )}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="font-semibold">รายชื่อ</h2>
+          <span className="text-xs text-muted-foreground">{attendees.length} คน</span>
         </div>
 
-        {filtered.length === 0 ? (
+        {attendees.length === 0 ? (
           <Card className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-            <span className="text-3xl">{typeFilter ? '🔍' : '🎉'}</span>
-            <p className="text-sm font-medium">
-              {typeFilter ? 'ไม่มีคนประเภทนี้' : 'ยังไม่มีใครเข้าร่วม'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {typeFilter ? 'ลองเลือกตัวกรองอื่น' : 'เป็นคนแรกที่ลงชื่อสิ!'}
-            </p>
+            <span className="text-3xl">🎉</span>
+            <p className="text-sm font-medium">ยังไม่มีใครเข้าร่วม</p>
+            <p className="text-xs text-muted-foreground">เป็นคนแรกที่ลงชื่อสิ!</p>
           </Card>
         ) : (
           <ul className="space-y-2">
-            {filtered.map((a) => (
+            {attendees.map((a) => (
               <li
                 key={a.memberId}
                 className={cn(
@@ -302,7 +228,7 @@ export default function EventDetailPage() {
                     )}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {drinkText(a.drinkChoice)} · {memberTypeLabel(a.memberType)}
+                    {drinkText(a.drinkChoice)}
                   </p>
                 </div>
                 <div
@@ -450,29 +376,6 @@ function drinkText(c: DrinkChoice): string {
   return c === 'LIQUOR' ? 'เหล้า' : c === 'BEER' ? 'เบียร์' : 'ไม่กินแอลกอฮอล์';
 }
 
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
-        active
-          ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-          : 'border-stone-200 bg-white text-stone-600 hover:border-primary/40 hover:text-primary',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 function JoinDialog({
   open,

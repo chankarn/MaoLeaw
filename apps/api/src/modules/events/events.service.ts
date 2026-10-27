@@ -81,7 +81,6 @@ export class EventsService {
                 customName: true,
                 lineDisplayName: true,
                 linePictureUrl: true,
-                memberType: true,
               },
             },
           },
@@ -97,7 +96,6 @@ export class EventsService {
       name: s.nameSnapshot || s.member.customName || s.member.lineDisplayName,
       pictureUrl: s.member.linePictureUrl,
       drinkChoice: s.drinkChoice,
-      memberType: s.member.memberType,
       isMe: s.memberId === memberId,
     }));
 
